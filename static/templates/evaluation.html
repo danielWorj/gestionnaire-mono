@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Évaluations — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+  <!-- ═══════════════════════════════════════════════
+       Styles spécifiques à la page Évaluations
+       (grille de saisie des notes, discipline, moyennes)
+       Repose entièrement sur les variables --ta-* de style.css
+  ═══════════════════════════════════════════════ -->
+  <style>
+    /* Barre de filtres */
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11px; font-weight: 600; color: var(--ta-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+    /* Grille d'évaluation (notes / discipline / moyennes) */
+    .eval-grid-wrap { overflow-x: auto; }
+    .eval-table { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; }
+    .eval-table thead th {
+      background: var(--ta-bg);
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--ta-text-muted);
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--ta-border);
+      text-align: center;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .eval-table thead th.eleve-col { width: 220px; text-align: left; padding-left: 14px; }
+    .eval-table tbody td { border: 1px solid var(--ta-border-light); padding: 6px; vertical-align: middle; text-align: center; }
+    .eval-table tbody td.eleve-col { text-align: left; padding-left: 14px; background: var(--ta-white); }
+    .eval-table tbody tr:hover td.eleve-col { background: var(--ta-bg); }
+
+    .eleve-identite { display: flex; align-items: center; gap: 8px; }
+    .eleve-avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--ta-primary-light); color: var(--ta-primary-dark);
+      display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; flex-shrink: 0;
+    }
+    .eleve-nom { font-weight: 600; font-size: 12px; color: var(--ta-text); line-height: 1.2; }
+    .eleve-matricule { font-size: 10px; color: var(--ta-text-light); }
+
+    .matiere-col-head { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .matiere-col-head .coef-badge { font-size: 9px; font-weight: 600; color: var(--ta-text-light); text-transform: none; letter-spacing: 0; }
+
+    /* Cellule de saisie d'une note */
+    .note-cell { display: flex; align-items: center; justify-content: center; gap: 4px; position: relative; min-width: 92px; }
+    .note-input {
+      width: 46px; text-align: center; border: 1px solid var(--ta-border); border-radius: var(--ta-radius-sm);
+      padding: 4px 2px; font-size: 12px; font-weight: 600; color: var(--ta-text);
+    }
+    .note-input:focus { outline: none; border-color: var(--ta-primary); box-shadow: 0 0 0 2px var(--ta-primary-light); }
+    .note-input:disabled { background: var(--ta-bg); color: var(--ta-text-light); }
+    .note-input.note-faible { color: var(--ta-danger); }
+    .note-input.note-forte { color: var(--ta-success); }
+    .note-abs-toggle {
+      border: 1px solid var(--ta-border); background: var(--ta-white); color: var(--ta-text-light);
+      font-size: 9px; font-weight: 700; border-radius: var(--ta-radius-sm); padding: 4px 6px; cursor: pointer; transition: all .15s ease;
+    }
+    .note-abs-toggle:hover { border-color: var(--ta-danger); color: var(--ta-danger); }
+    .note-abs-toggle.is-absent { background: var(--ta-danger-light); border-color: var(--ta-danger); color: var(--ta-danger); }
+    .note-delete {
+      border: none; background: transparent; color: var(--ta-text-light); width: 16px; height: 16px; display: none;
+      align-items: center; justify-content: center; font-size: 9px; cursor: pointer; border-radius: 3px; flex-shrink: 0;
+    }
+    .note-cell:hover .note-delete { display: flex; }
+    .note-delete:hover { background: var(--ta-danger-light); color: var(--ta-danger); }
+    .note-saved-flash { animation: noteSaved .6s ease; }
+    @keyframes noteSaved { 0% { background: var(--ta-success-light); } 100% { background: transparent; } }
+
+    .moyenne-cell { font-weight: 700; font-size: 12px; }
+    .moyenne-row-foot td { background: var(--ta-bg); font-weight: 700; font-size: 11px; color: var(--ta-text-muted); }
+
+    /* Cellules discipline */
+    .disc-input { width: 64px; text-align: center; border: 1px solid var(--ta-border); border-radius: var(--ta-radius-sm); padding: 5px 4px; font-size: 12px; }
+    .disc-input:focus { outline: none; border-color: var(--ta-primary); box-shadow: 0 0 0 2px var(--ta-primary-light); }
+    .disc-obs-input { min-width: 180px; border: 1px solid var(--ta-border); border-radius: var(--ta-radius-sm); padding: 5px 8px; font-size: 11.5px; width: 100%; }
+    .disc-row-dirty td.eleve-col { box-shadow: inset 3px 0 0 var(--ta-warning); }
+
+    /* Rang moyennes */
+    .rang-badge {
+      display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--ta-bg); color: var(--ta-text-muted); font-weight: 700; font-size: 11px;
+    }
+    .rang-badge.top1 { background: #FEF3C7; color: #92400E; }
+    .rang-badge.top2 { background: #F1F5F9; color: #475569; }
+    .rang-badge.top3 { background: #FFF1E6; color: #9A3412; }
+
+    .grid-loading, .grid-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 40px; color: var(--ta-text-light); font-size: 13px; }
+
+    @media (max-width: 575.98px) {
+      .eval-table { min-width: 640px; }
+    }
+
+    /* ═══════════════════════════════════════════════
+       IMPRESSION — feuille de résultats / bulletin de classe
+    ═══════════════════════════════════════════════ */
+    #zoneImpression { display: none; }
+
+    .print-sheet { font-family: Arial, Helvetica, sans-serif; color: #111; }
+    .print-header-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 10px;
+    }
+    .print-etab-nom { font-weight: 800; font-size: 14px; text-transform: uppercase; }
+    .print-annee { font-size: 11px; margin-top: 3px; color: #333; }
+    .print-titre-principal { font-weight: 800; font-size: 18px; text-align: right; letter-spacing: .06em; }
+    .print-titre-secondaire { font-size: 11.5px; text-align: right; text-transform: uppercase; color: #333; margin-top: 2px; }
+    .print-champs {
+      display: flex; flex-wrap: wrap; column-gap: 28px; row-gap: 4px;
+      font-size: 11.5px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #ccc;
+    }
+    .print-champ span { color: #555; }
+    .print-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .print-table th, .print-table td { border: 1px solid #333; padding: 5px 4px; text-align: center; word-wrap: break-word; }
+    .print-table th.print-eleve-col, .print-table td.print-eleve-col { text-align: left; width: 190px; }
+    .print-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; font-size: 11.5px; }
+    .print-signatures { display: flex; gap: 60px; }
+    .print-signature { border-top: 1px solid #333; padding-top: 5px; width: 130px; text-align: center; font-weight: 600; }
+
+    @media print {
+      body.mode-impression .app-wrapper { display: none !important; }
+      body.mode-impression #zoneImpression { display: block !important; }
+      @page { size: landscape; margin: 10mm; }
+    }
+
+    /* ═══════════════════════════════════════════════
+       BULLETIN DE NOTES ANNUEL (impression portrait)
+       Utilise les pages nommées CSS (@page bulletin) pour forcer
+       le portrait indépendamment du @page paysage utilisé pour
+       les autres impressions (Chrome/Edge). Repli gracieux ailleurs.
+    ═══════════════════════════════════════════════ */
+    @page bulletin { size: portrait; margin: 8mm; }
+
+    .bulletin-sheet {
+      font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 10.5px;
+      page-break-after: always; padding: 4px 2px; page: bulletin;
+    }
+    .bulletin-sheet:last-child { page-break-after: auto; }
+    .bulletin-entete {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; gap: 10px;
+    }
+    .bulletin-entete .col-etab { font-size: 9.5px; line-height: 1.35; text-align: left; }
+    .bulletin-entete .col-etab .etab-nom { font-weight: 800; text-transform: uppercase; font-size: 11px; }
+    .bulletin-entete .col-etab .etab-pays { text-transform: uppercase; }
+    .bulletin-titre-principale { text-align: center; flex: 1; }
+    .bulletin-titre-principale .titre { font-weight: 800; font-size: 15px; text-transform: uppercase; letter-spacing: .03em; }
+    .bulletin-entete .col-droite { font-size: 9.5px; line-height: 1.35; text-align: right; }
+
+    .bulletin-identite {
+      display: grid; grid-template-columns: 1.6fr 1fr; gap: 2px 24px;
+      font-size: 11px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #999;
+    }
+    .bulletin-identite .champ { display: flex; gap: 6px; }
+    .bulletin-identite .champ .lbl { color: #444; min-width: 90px; }
+    .bulletin-identite .champ .val { font-weight: 700; }
+    .bulletin-identite .nom-eleve { font-size: 13px; font-weight: 800; text-transform: uppercase; grid-column: 1 / -1; margin-bottom: 2px; }
+
+    .bulletin-table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 4px; }
+    .bulletin-table th, .bulletin-table td { border: 1px solid #333; padding: 3px 4px; text-align: center; }
+    .bulletin-table th { background: #f2f2f2; font-weight: 700; }
+    .bulletin-table td.matiere-col, .bulletin-table th.matiere-col { text-align: left; padding-left: 6px; min-width: 150px; }
+    .bulletin-table tr.groupe-row td { background: #e9e9e9; font-weight: 700; text-align: left; padding-left: 6px; text-transform: uppercase; font-size: 9px; }
+    .bulletin-table tr.groupe-total td { background: #f7f7f7; font-weight: 700; }
+    .bulletin-table tr.total-general td { background: #ddd; font-weight: 800; }
+    .bulletin-table .cell-vide { color: #999; }
+
+    .bulletin-recaps { display: flex; gap: 14px; margin-top: 10px; }
+    .bulletin-recap-bloc { flex: 1; }
+    .bulletin-recap-bloc .titre-bloc { font-weight: 800; font-size: 10px; text-transform: uppercase; margin-bottom: 3px; text-align: center; background: #eee; padding: 3px; border: 1px solid #333; border-bottom: none; }
+    .bulletin-recap-bloc table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+    .bulletin-recap-bloc th, .bulletin-recap-bloc td { border: 1px solid #333; padding: 3px 4px; text-align: center; }
+    .bulletin-recap-bloc th { background: #f2f2f2; }
+
+    .bulletin-observations { margin-top: 10px; font-size: 10px; border: 1px solid #333; padding: 6px 8px; min-height: 28px; }
+    .bulletin-observations .lbl { font-weight: 700; text-transform: uppercase; font-size: 9px; margin-bottom: 3px; }
+
+    .bulletin-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 16px; font-size: 10.5px; }
+    .bulletin-footer .signature { border-top: 1px solid #333; padding-top: 4px; width: 140px; text-align: center; font-weight: 600; }
+
+    .bulletin-legende { font-size: 8.5px; color: #444; margin-top: 6px; }
+  </style>
+</head>
+<body data-page="notes-saisie">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Évaluations</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Évaluations</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Saisissez les notes, gérez la discipline et consultez les moyennes par classe et séquence.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button" id="btnImprimer" title="Imprimer la vue active">
+              <i class="fa-solid fa-print"></i> Imprimer
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnExportExcel" title="Exporter la vue active en Excel/CSV">
+              <i class="fa-solid fa-file-excel"></i> Exporter Excel
+            </button>
+            <div class="vr mx-1"></div>
+            <button class="btn btn-outline-primary btn-sm" type="button" id="btnBulletinEleve" title="Générer le bulletin annuel d'un élève">
+              <i class="fa-solid fa-file-lines"></i> Bulletin élève
+            </button>
+            <button class="btn btn-primary btn-sm" type="button" id="btnBulletinClasse" title="Générer les bulletins annuels de toute la classe">
+              <i class="fa-solid fa-people-group"></i> Bulletins de la classe
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES (contextuelles selon l'onglet actif)
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow"></div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRES COMMUNS
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="filter-bar">
+              <div class="filter-group">
+                <label for="filterAnnee">Année scolaire</label>
+                <select class="form-select form-select-sm" id="filterAnnee" style="min-width:150px;">
+                  <option value="">Chargement…</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="filterClasse">Classe</label>
+                <select class="form-select form-select-sm" id="filterClasse" style="min-width:160px;">
+                  <option value="">Chargement…</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="filterTrimestre">Trimestre</label>
+                <select class="form-select form-select-sm" id="filterTrimestre" style="min-width:150px;">
+                  <option value="">Chargement…</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="filterSequence">Séquence</label>
+                <select class="form-select form-select-sm" id="filterSequence" style="min-width:150px;">
+                  <option value="">Chargement…</option>
+                </select>
+              </div>
+
+              <div class="filter-group flex-grow-1"></div>
+
+              <div class="filter-group">
+                <label>&nbsp;</label>
+                <span class="text-muted" style="font-size:11px;"><i class="fa-solid fa-circle-info me-1"></i>La saisie est enregistrée automatiquement.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             ONGLETS PRINCIPAUX
+        ═══════════════════════════════════════════════ -->
+        <ul class="nav nav-tabs mb-3" id="evalTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-notes" data-bs-toggle="tab"
+                    data-bs-target="#pane-notes" type="button" role="tab">
+              <i class="fa-solid fa-pen-to-square me-1"></i>Saisie des notes
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-discipline" data-bs-toggle="tab"
+                    data-bs-target="#pane-discipline" type="button" role="tab">
+              <i class="fa-solid fa-triangle-exclamation me-1"></i>Discipline
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-moyennes" data-bs-toggle="tab"
+                    data-bs-target="#pane-moyennes" type="button" role="tab">
+              <i class="fa-solid fa-ranking-star me-1"></i>Moyennes
+            </button>
+          </li>
+        </ul>
+
+        <!-- ═══════════════════════════════════════════════
+             CONTENU DES ONGLETS
+        ═══════════════════════════════════════════════ -->
+        <div class="tab-content" id="evalTabsContent">
+
+          <!-- ─────────── ONGLET 1 : SAISIE DES NOTES ─────────── -->
+          <div class="tab-pane fade show active" id="pane-notes" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Notes — <span id="notesGridTitle">—</span>
+                </h2>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge badge-neutral" id="notesGridCount">0 note(s) saisie(s)</span>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="eval-grid-wrap" style="max-height:560px; overflow-y:auto;">
+                  <table class="eval-table" id="grilleNotes">
+                    <thead>
+                      <tr>
+                        <th class="eleve-col">Élève</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="1" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement de la grille…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Saisissez une note (0 à 20) puis quittez la case pour l'enregistrer. Utilisez « ABS » pour marquer un élève absent.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 2 : DISCIPLINE ─────────── -->
+          <div class="tab-pane fade" id="pane-discipline" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-triangle-exclamation me-2 text-primary"></i>Discipline — <span id="disciplineGridTitle">—</span>
+                </h2>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge badge-neutral" id="disciplineGridCount">0 enregistrement(s)</span>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="eval-grid-wrap">
+                  <table class="eval-table" id="grilleDiscipline">
+                    <thead>
+                      <tr>
+                        <th class="eleve-col">Élève</th>
+                        <th>Abs. justifiées</th>
+                        <th>Abs. injustifiées</th>
+                        <th>Retards</th>
+                        <th>Exclusions</th>
+                        <th style="min-width:200px;">Observation</th>
+                        <th style="width:170px;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="7" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Modifiez les champs puis cliquez sur « Enregistrer » pour valider la ligne.</small>
+                <div class="d-flex align-items-center gap-2">
+                  <select class="form-select form-select-sm" id="cumulEleveSelect" style="min-width:200px;">
+                    <option value="">-- Choisir un élève --</option>
+                  </select>
+                  <button class="btn btn-light btn-sm" id="btnCumulTrimestre"><i class="fa-solid fa-layer-group"></i> Cumul trimestre</button>
+                  <button class="btn btn-light btn-sm" id="btnCumulAnnee"><i class="fa-solid fa-calendar"></i> Cumul année</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 3 : MOYENNES ─────────── -->
+          <div class="tab-pane fade" id="pane-moyennes" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-ranking-star me-2 text-primary"></i>Moyennes — <span id="moyennesGridTitle">—</span>
+                </h2>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge badge-neutral" id="moyennesGridCount">0 élève(s)</span>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="eval-grid-wrap">
+                  <table class="eval-table" id="grilleMoyennes">
+                    <thead>
+                      <tr>
+                        <th style="width:56px;">Rang</th>
+                        <th class="eleve-col">Élève</th>
+                        <th>Moyenne pondérée</th>
+                        <th>Appréciation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="4" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Moyenne pondérée par les coefficients des matières, calculée à partir des notes saisies dans l'onglet « Saisie des notes ».</small>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Cumul discipline (trimestre / année)
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalCumulDiscipline" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalCumulTitle"><i class="fa-solid fa-layer-group me-2 text-primary"></i>Cumul de discipline</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="modalCumulBody">
+          <div class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Choix de l'élève pour le bulletin individuel
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalBulletinEleve" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-file-lines me-2 text-primary"></i>Générer un bulletin</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2" style="font-size:12px;" class="text-muted">
+            Le bulletin reprend toutes les séquences de l'année scolaire active pour la classe sélectionnée dans les filtres.
+          </div>
+          <label class="form-label" for="bulletinEleveSelect" style="font-size:12px;font-weight:600;">Élève</label>
+          <select class="form-select form-select-sm" id="bulletinEleveSelect">
+            <option value="">-- Choisir un élève --</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnConfirmerBulletinEleve"><i class="fa-solid fa-print me-1"></i>Générer le bulletin</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       ZONE D'IMPRESSION (générée dynamiquement en JS)
+       Invisible à l'écran, affichée uniquement au print
+  ═══════════════════════════════════════════════ -->
+  <div id="zoneImpression"></div>
+
+  <!-- Toast notifications -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="toastExport" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Info</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastExportBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page Évaluations -->
+  <script>
+    (function () {
+      "use strict";
+
+      /* ═══════════════════════════════════════
+         CONFIGURATION DES ENDPOINTS
+         Les routes ci-dessous correspondent à evaluation_api.py,
+         inscription_api.py, structure_api.py et pedagogie_api.py.
+      ═══════════════════════════════════════ */
+      const ENDPOINTS = {
+        anneesScolaires: "/api/structure/annees-scolaires",
+        classes: "/api/structure/classes",
+        trimestresByAnnee: (anneeId) => `/api/structure/annees-scolaires/${anneeId}/trimestres`,
+        sequencesByTrimestre: (trimestreId) => `/api/structure/trimestres/${trimestreId}/sequences`,
+        matieresClasse: (classeId) => `/api/pedagogie/classes/${classeId}/matieres`,
+        inscriptionsClasseAnnee: (classeId, anneeId) => `/api/inscription/classes/${classeId}/annees/${anneeId}/inscriptions`,
+
+        notesBySequence: (sequenceId) => `/api/evaluation/notes/sequence/${sequenceId}`,
+        notes: "/api/evaluation/notes",
+        noteById: (id) => `/api/evaluation/notes/${id}`,
+
+        disciplineBySequence: (sequenceId) => `/api/evaluation/discipline/sequence/${sequenceId}`,
+        discipline: "/api/evaluation/discipline",
+        disciplineById: (id) => `/api/evaluation/discipline/${id}`,
+        disciplineAggregationTrimestre: (inscriptionId, trimestreId) => `/api/evaluation/discipline/inscription/${inscriptionId}/trimestre/${trimestreId}/aggregation`,
+        disciplineAggregationAnnee: (inscriptionId, anneeId) => `/api/evaluation/discipline/inscription/${inscriptionId}/annee/${anneeId}/aggregation`
+      };
+
+      const state = {
+        annees: [],
+        classes: [],
+        trimestres: [],
+        sequences: [],
+        anneeActiveId: null,
+        classeActiveId: null,
+        trimestreActiveId: null,
+        sequenceActiveId: null,
+
+        roster: [],          // inscriptions de la classe pour l'année active
+        matieresClasse: [],  // matières de la classe active
+
+        notesIndex: {},       // clé "inscriptionId|matiereClasseId" -> note
+        disciplineIndex: {}   // clé inscriptionId -> discipline
+      };
+
+      /* ═══════════════════════════════════════
+         HELPERS API
+      ═══════════════════════════════════════ */
+      async function apiFetch(url, options = {}) {
+        const res = await fetch(url, {
+          headers: { "Content-Type": "application/json" },
+          ...options
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch (e) { /* réponse vide */ }
+        if (!res.ok || (payload && payload.success === false)) {
+          const message = (payload && payload.error) || `Erreur ${res.status}`;
+          throw new Error(message);
+        }
+        return payload;
+      }
+
+      function showToast(message, type = "success") {
+        const body = document.getElementById("toastExportBody");
+        const title = document.getElementById("toastTitle");
+        const icon = document.getElementById("toastIcon");
+        body.textContent = message;
+        title.textContent = type === "error" ? "Erreur" : "Info";
+        icon.className = type === "error"
+          ? "fa-solid fa-circle-exclamation text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        new bootstrap.Toast(document.getElementById("toastExport"), { delay: 4000 }).show();
+      }
+
+      /* Extraction défensive des champs imbriqués (formes exactes non garanties) */
+      function getEleve(insc) {
+        return (insc && insc.eleve) || {};
+      }
+      function eleveNomComplet(insc) {
+        const e = getEleve(insc);
+        return `${e.nom || ""} ${e.prenom || ""}`.trim() || "Élève";
+      }
+      function eleveInitiales(insc) {
+        const e = getEleve(insc);
+        return `${(e.nom || "?").charAt(0)}${(e.prenom || "?").charAt(0)}`.toUpperCase();
+      }
+      function getMatiereNom(mc) {
+        return (mc && (mc.matiere_nom || (mc.matiere && (mc.matiere.libelle || mc.matiere.nom)))) || "Matière";
+      }
+      function getCoefficient(mc) {
+        const c = mc && mc.coefficient;
+        return (c === null || c === undefined) ? 1 : c;
+      }
+
+      function rosterTriee() {
+        return [...state.roster].sort((a, b) => eleveNomComplet(a).localeCompare(eleveNomComplet(b), "fr"));
+      }
+
+      /* ═══════════════════════════════════════
+         STATS PAR ONGLET (calculées depuis les données réelles)
+      ═══════════════════════════════════════ */
+      function buildStatCard(icon, color, label, value, change, up) {
+        return `
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-start justify-content-between">
+                <div class="stat-icon ${color}"><i class="fa-solid ${icon}"></i></div>
+              </div>
+              <div class="stat-label">${label}</div>
+              <div class="stat-value">${value}</div>
+              <div class="stat-change ${up ? 'up' : 'down'}">
+                <i class="fa-solid ${up ? 'fa-arrow-up' : 'fa-minus'}"></i> ${change}
+              </div>
+            </div>
+          </div>`;
+      }
+
+      function updateStatsNotes() {
+        const attendu = state.roster.length * state.matieresClasse.length;
+        const saisies = Object.keys(state.notesIndex).length;
+        const valeurs = Object.values(state.notesIndex).filter(n => !n.absent).map(n => Number(n.valeur));
+        const moyenne = valeurs.length ? (valeurs.reduce((a, b) => a + b, 0) / valeurs.length).toFixed(2) : "—";
+        const elevesSansNote = state.roster.filter(insc =>
+          state.matieresClasse.every(mc => !state.notesIndex[`${insc.id}|${mc.id}`])
+        ).length;
+        document.getElementById("statsRow").innerHTML = [
+          buildStatCard("fa-pen-to-square", "primary", "Notes saisies", saisies, `sur ${attendu} attendues`, true),
+          buildStatCard("fa-chart-simple", "info", "Moyenne de classe", moyenne, "toutes matières", true),
+          buildStatCard("fa-users", "warning", "Élèves sans note", elevesSansNote, "à compléter", false),
+          buildStatCard("fa-book-open", "success", "Matières évaluées", state.matieresClasse.length, "au programme", true)
+        ].join("");
+      }
+
+      function updateStatsDiscipline() {
+        const vals = Object.values(state.disciplineIndex);
+        const j = vals.reduce((a, d) => a + (d.absences_justifiees || 0), 0);
+        const nj = vals.reduce((a, d) => a + (d.absences_non_justifiees || 0), 0);
+        const r = vals.reduce((a, d) => a + (d.retards || 0), 0);
+        const ex = vals.reduce((a, d) => a + (d.exclusions || 0), 0);
+        document.getElementById("statsRow").innerHTML = [
+          buildStatCard("fa-calendar-xmark", "info", "Absences justifiées", j, "sur la séquence", true),
+          buildStatCard("fa-calendar-xmark", "danger", "Absences injustifiées", nj, "sur la séquence", false),
+          buildStatCard("fa-clock", "warning", "Retards", r, "sur la séquence", false),
+          buildStatCard("fa-triangle-exclamation", "danger", "Exclusions", ex, "sur la séquence", false)
+        ].join("");
+      }
+
+      function updateStatsMoyennes(moyennes) {
+        const vals = moyennes.map(m => m.moyenne).filter(v => v !== null);
+        const moyClasse = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : "—";
+        const meilleure = vals.length ? Math.max(...vals).toFixed(2) : "—";
+        const admis = vals.filter(v => v >= 10).length;
+        const difficulte = vals.filter(v => v < 8).length;
+        document.getElementById("statsRow").innerHTML = [
+          buildStatCard("fa-chart-simple", "primary", "Moyenne de classe", moyClasse, "sur 20", true),
+          buildStatCard("fa-trophy", "success", "Meilleure moyenne", meilleure, "de la classe", true),
+          buildStatCard("fa-square-check", "info", "Élèves ≥ 10/20", admis, "admis", true),
+          buildStatCard("fa-triangle-exclamation", "warning", "Élèves < 8/20", difficulte, "en difficulté", false)
+        ].join("");
+      }
+
+      /* ═══════════════════════════════════════
+         CHARGEMENT DES RÉFÉRENTIELS
+      ═══════════════════════════════════════ */
+      async function loadAnnees() {
+        const select = document.getElementById("filterAnnee");
+        try {
+          const payload = await apiFetch(ENDPOINTS.anneesScolaires);
+          state.annees = payload.data || [];
+          if (!state.annees.length) throw new Error("Aucune année scolaire trouvée");
+          select.innerHTML = state.annees.map(a =>
+            `<option value="${a.id}" ${a.active ? "selected" : ""}>${a.libelle}${a.active ? " (Active)" : ""}</option>`
+          ).join("");
+          const active = state.annees.find(a => a.active) || state.annees[0];
+          state.anneeActiveId = active.id;
+        } catch (e) {
+          select.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Années scolaires : ${e.message}`, "error");
+        }
+      }
+
+      async function loadClasses() {
+        const select = document.getElementById("filterClasse");
+        try {
+          const payload = await apiFetch(ENDPOINTS.classes);
+          state.classes = payload.data || [];
+          select.innerHTML = state.classes.map(c => `<option value="${c.id}">${c.libelle}</option>`).join("")
+            || `<option value="">Aucune classe</option>`;
+          if (state.classes.length) {
+            state.classeActiveId = state.classes[0].id;
+            updateGridTitles(state.classes[0].libelle);
+          }
+        } catch (e) {
+          select.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Classes : ${e.message}`, "error");
+        }
+      }
+
+      async function loadTrimestres() {
+        const select = document.getElementById("filterTrimestre");
+        if (!state.anneeActiveId) {
+          select.innerHTML = `<option value="">—</option>`;
+          return;
+        }
+        try {
+          const payload = await apiFetch(ENDPOINTS.trimestresByAnnee(state.anneeActiveId));
+          state.trimestres = (payload.data || []).sort((a, b) => a.numero - b.numero);
+          select.innerHTML = state.trimestres.map(t => `<option value="${t.id}">${t.libelle}</option>`).join("")
+            || `<option value="">Aucun trimestre</option>`;
+          if (state.trimestres.length) {
+            state.trimestreActiveId = state.trimestres[0].id;
+          } else {
+            state.trimestreActiveId = null;
+          }
+        } catch (e) {
+          select.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Trimestres : ${e.message}`, "error");
+        }
+        await loadSequences();
+      }
+
+      async function loadSequences() {
+        const select = document.getElementById("filterSequence");
+        if (!state.trimestreActiveId) {
+          select.innerHTML = `<option value="">—</option>`;
+          state.sequenceActiveId = null;
+          return;
+        }
+        try {
+          const payload = await apiFetch(ENDPOINTS.sequencesByTrimestre(state.trimestreActiveId));
+          state.sequences = (payload.data || []).sort((a, b) => a.numero - b.numero);
+          select.innerHTML = state.sequences.map(s => `<option value="${s.id}">${s.libelle}</option>`).join("")
+            || `<option value="">Aucune séquence</option>`;
+          state.sequenceActiveId = state.sequences.length ? state.sequences[0].id : null;
+        } catch (e) {
+          select.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Séquences : ${e.message}`, "error");
+        }
+      }
+
+      function updateGridTitles(classeLibelle) {
+        const seq = state.sequences.find(s => s.id == state.sequenceActiveId);
+        const suffix = seq ? ` — ${seq.libelle}` : "";
+        const label = `${classeLibelle || "—"}${suffix}`;
+        document.getElementById("notesGridTitle").textContent = label;
+        document.getElementById("disciplineGridTitle").textContent = label;
+        document.getElementById("moyennesGridTitle").textContent = label;
+      }
+
+      /* ═══════════════════════════════════════
+         CHARGEMENT DU CONTEXTE (roster + matières de la classe)
+      ═══════════════════════════════════════ */
+      async function loadContexteClasse() {
+        if (!state.classeActiveId || !state.anneeActiveId) {
+          state.roster = [];
+          state.matieresClasse = [];
+          return;
+        }
+        try {
+          const [rosterPayload, matieresPayload] = await Promise.all([
+            apiFetch(ENDPOINTS.inscriptionsClasseAnnee(state.classeActiveId, state.anneeActiveId)),
+            apiFetch(ENDPOINTS.matieresClasse(state.classeActiveId))
+          ]);
+          state.roster = rosterPayload.data || [];
+          state.matieresClasse = matieresPayload.data || [];
+        } catch (e) {
+          state.roster = [];
+          state.matieresClasse = [];
+          showToast(`Chargement de la classe : ${e.message}`, "error");
+        }
+        renderCumulEleveSelect();
+      }
+
+      function renderCumulEleveSelect() {
+        const select = document.getElementById("cumulEleveSelect");
+        select.innerHTML = `<option value="">-- Choisir un élève --</option>` +
+          rosterTriee().map(insc => `<option value="${insc.id}">${eleveNomComplet(insc)}</option>`).join("");
+      }
+
+      /* ═══════════════════════════════════════
+         ONGLET NOTES
+      ═══════════════════════════════════════ */
+      async function loadGrilleNotes() {
+        const table = document.getElementById("grilleNotes");
+        const thead = table.querySelector("thead tr");
+        const tbody = table.querySelector("tbody");
+
+        if (!state.classeActiveId || !state.sequenceActiveId) {
+          tbody.innerHTML = `<tr><td class="grid-empty">Sélectionnez une classe et une séquence.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = `<tr><td class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement de la grille…</td></tr>`;
+
+        await loadContexteClasse();
+
+        try {
+          const payload = await apiFetch(ENDPOINTS.notesBySequence(state.sequenceActiveId));
+          const matiereIds = new Set(state.matieresClasse.map(mc => mc.id));
+          const inscriptionIds = new Set(state.roster.map(i => i.id));
+          const notesClasse = (payload.data || []).filter(n => matiereIds.has(n.matiere_classe_id) && inscriptionIds.has(n.inscription_id));
+          state.notesIndex = {};
+          notesClasse.forEach(n => { state.notesIndex[`${n.inscription_id}|${n.matiere_classe_id}`] = n; });
+        } catch (e) {
+          state.notesIndex = {};
+          tbody.innerHTML = `<tr><td class="grid-empty">${e.message}</td></tr>`;
+          showToast(`Notes : ${e.message}`, "error");
+          return;
+        }
+
+        renderGrilleNotesHead(thead);
+        renderGrilleNotesBody(tbody);
+        document.getElementById("notesGridCount").textContent = `${Object.keys(state.notesIndex).length} note(s) saisie(s)`;
+        const classeNom = (state.classes.find(c => c.id == state.classeActiveId) || {}).libelle;
+        updateGridTitles(classeNom);
+        updateStatsNotes();
+      }
+
+      function renderGrilleNotesHead(thead) {
+        const matieres = state.matieresClasse;
+        thead.innerHTML = `<th class="eleve-col">Élève</th>` + matieres.map(mc => `
+          <th>
+            <div class="matiere-col-head">
+              <span>${getMatiereNom(mc)}</span>
+              <span class="coef-badge">Coef. ${getCoefficient(mc)}</span>
+            </div>
+          </th>`).join("") + `<th style="width:80px;">Moyenne</th>`;
+      }
+
+      function noteClassFor(valeur) {
+        if (valeur === null || valeur === undefined || valeur === "") return "";
+        const v = Number(valeur);
+        if (v < 8) return "note-faible";
+        if (v >= 14) return "note-forte";
+        return "";
+      }
+
+      function renderGrilleNotesBody(tbody) {
+        const roster = rosterTriee();
+        const matieres = state.matieresClasse;
+
+        if (!roster.length) {
+          tbody.innerHTML = `<tr><td class="grid-empty">Aucun élève inscrit dans cette classe pour l'année sélectionnée.</td></tr>`;
+          return;
+        }
+        if (!matieres.length) {
+          tbody.innerHTML = `<tr><td class="grid-empty">Aucune matière affectée à cette classe. Configurez-les dans « Matières & Coefficients ».</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = roster.map(insc => {
+          const cells = matieres.map(mc => {
+            const note = state.notesIndex[`${insc.id}|${mc.id}`];
+            const absent = !!(note && note.absent);
+            const valeur = note ? note.valeur : "";
+            return `
+              <td>
+                <div class="note-cell" data-inscription="${insc.id}" data-matiere="${mc.id}" data-note-id="${note ? note.id : ''}">
+                  <input type="number" class="note-input ${noteClassFor(valeur)}" min="0" max="20" step="0.25"
+                         value="${valeur === null || valeur === undefined ? '' : valeur}" ${absent ? 'disabled' : ''} placeholder="—">
+                  <button type="button" class="note-abs-toggle ${absent ? 'is-absent' : ''}" title="Marquer/démarquer absent">ABS</button>
+                  <button type="button" class="note-delete" title="Supprimer la note" style="display:${note ? 'flex' : 'none'};"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+              </td>`;
+          }).join("");
+          return `<tr data-inscription-row="${insc.id}">
+            <td class="eleve-col">
+              <div class="eleve-identite">
+                <div class="eleve-avatar">${eleveInitiales(insc)}</div>
+                <div>
+                  <div class="eleve-nom">${eleveNomComplet(insc)}</div>
+                  <div class="eleve-matricule">${(getEleve(insc).matricule) || ""}</div>
+                </div>
+              </div>
+            </td>
+            ${cells}
+            <td class="moyenne-cell" data-moyenne-inscription="${insc.id}">${formatMoyenne(calculerMoyenneEleve(insc.id))}</td>
+          </tr>`;
+        }).join("");
+
+        bindGrilleNotesEvents();
+      }
+
+      function calculerMoyenneEleve(inscriptionId) {
+        let totalPondere = 0;
+        let totalCoef = 0;
+        state.matieresClasse.forEach(mc => {
+          const note = state.notesIndex[`${inscriptionId}|${mc.id}`];
+          if (note && !note.absent && note.valeur !== null && note.valeur !== undefined) {
+            const coef = getCoefficient(mc);
+            totalPondere += Number(note.valeur) * coef;
+            totalCoef += coef;
+          }
+        });
+        return totalCoef > 0 ? (totalPondere / totalCoef) : null;
+      }
+
+      function formatMoyenne(v) {
+        return v === null ? "—" : v.toFixed(2);
+      }
+
+      function refreshMoyenneCell(inscriptionId) {
+        const cell = document.querySelector(`[data-moyenne-inscription="${inscriptionId}"]`);
+        if (cell) cell.textContent = formatMoyenne(calculerMoyenneEleve(inscriptionId));
+      }
+
+      function bindGrilleNotesEvents() {
+        document.querySelectorAll("#grilleNotes .note-cell").forEach(cell => {
+          const input = cell.querySelector(".note-input");
+          const absToggle = cell.querySelector(".note-abs-toggle");
+          const delBtn = cell.querySelector(".note-delete");
+
+          input.addEventListener("change", () => saveNoteFromCell(cell));
+          input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+          absToggle.addEventListener("click", () => toggleAbsentFromCell(cell));
+          delBtn.addEventListener("click", () => deleteNoteFromCell(cell));
+        });
+      }
+
+      async function saveNoteFromCell(cell) {
+        const input = cell.querySelector(".note-input");
+        const inscriptionId = parseInt(cell.dataset.inscription, 10);
+        const matiereClasseId = parseInt(cell.dataset.matiere, 10);
+        const raw = input.value;
+
+        if (raw === "") {
+          if (cell.dataset.noteId) await deleteNoteFromCell(cell, true);
+          return;
+        }
+
+        const valeur = Number(raw);
+        if (isNaN(valeur) || valeur < 0 || valeur > 20) {
+          showToast("La note doit être comprise entre 0 et 20.", "error");
+          input.value = "";
+          return;
+        }
+
+        const data = { inscription_id: inscriptionId, matiere_classe_id: matiereClasseId, sequence_id: state.sequenceActiveId, valeur, absent: false };
+
+        try {
+          let payload;
+          if (cell.dataset.noteId) {
+            payload = await apiFetch(ENDPOINTS.noteById(cell.dataset.noteId), { method: "PUT", body: JSON.stringify({ valeur, absent: false }) });
+          } else {
+            payload = await apiFetch(ENDPOINTS.notes, { method: "POST", body: JSON.stringify(data) });
+          }
+          const note = payload.data;
+          state.notesIndex[`${inscriptionId}|${matiereClasseId}`] = note;
+          cell.dataset.noteId = note.id;
+          input.classList.remove("note-faible", "note-forte");
+          input.classList.add(noteClassFor(note.valeur));
+          input.classList.add("note-saved-flash");
+          setTimeout(() => input.classList.remove("note-saved-flash"), 650);
+          cell.querySelector(".note-delete").style.display = "flex";
+          refreshMoyenneCell(inscriptionId);
+          document.getElementById("notesGridCount").textContent = `${Object.keys(state.notesIndex).length} note(s) saisie(s)`;
+          updateStatsNotes();
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      async function toggleAbsentFromCell(cell) {
+        const input = cell.querySelector(".note-input");
+        const absToggle = cell.querySelector(".note-abs-toggle");
+        const inscriptionId = parseInt(cell.dataset.inscription, 10);
+        const matiereClasseId = parseInt(cell.dataset.matiere, 10);
+        const nowAbsent = !absToggle.classList.contains("is-absent");
+
+        try {
+          let payload;
+          if (cell.dataset.noteId) {
+            payload = await apiFetch(ENDPOINTS.noteById(cell.dataset.noteId), { method: "PUT", body: JSON.stringify({ absent: nowAbsent, valeur: nowAbsent ? 0 : (Number(input.value) || 0) }) });
+          } else {
+            payload = await apiFetch(ENDPOINTS.notes, {
+              method: "POST",
+              body: JSON.stringify({ inscription_id: inscriptionId, matiere_classe_id: matiereClasseId, sequence_id: state.sequenceActiveId, valeur: 0, absent: nowAbsent })
+            });
+          }
+          const note = payload.data;
+          state.notesIndex[`${inscriptionId}|${matiereClasseId}`] = note;
+          cell.dataset.noteId = note.id;
+          absToggle.classList.toggle("is-absent", nowAbsent);
+          input.disabled = nowAbsent;
+          input.value = nowAbsent ? "" : (note.valeur ?? "");
+          cell.querySelector(".note-delete").style.display = "flex";
+          refreshMoyenneCell(inscriptionId);
+          document.getElementById("notesGridCount").textContent = `${Object.keys(state.notesIndex).length} note(s) saisie(s)`;
+          updateStatsNotes();
+          showToast(nowAbsent ? "Élève marqué absent." : "Élève marqué présent.");
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      async function deleteNoteFromCell(cell, silent) {
+        if (!cell.dataset.noteId) return;
+        if (!silent && !confirm("Supprimer cette note ?")) return;
+        const inscriptionId = parseInt(cell.dataset.inscription, 10);
+        const matiereClasseId = parseInt(cell.dataset.matiere, 10);
+        try {
+          await apiFetch(ENDPOINTS.noteById(cell.dataset.noteId), { method: "DELETE" });
+          delete state.notesIndex[`${inscriptionId}|${matiereClasseId}`];
+          cell.dataset.noteId = "";
+          const input = cell.querySelector(".note-input");
+          input.value = "";
+          input.disabled = false;
+          input.classList.remove("note-faible", "note-forte");
+          cell.querySelector(".note-abs-toggle").classList.remove("is-absent");
+          cell.querySelector(".note-delete").style.display = "none";
+          refreshMoyenneCell(inscriptionId);
+          document.getElementById("notesGridCount").textContent = `${Object.keys(state.notesIndex).length} note(s) saisie(s)`;
+          updateStatsNotes();
+          if (!silent) showToast("Note supprimée.");
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      /* ═══════════════════════════════════════
+         ONGLET DISCIPLINE
+      ═══════════════════════════════════════ */
+      async function loadGrilleDiscipline() {
+        const tbody = document.querySelector("#grilleDiscipline tbody");
+        if (!state.classeActiveId || !state.sequenceActiveId) {
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty">Sélectionnez une classe et une séquence.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = `<tr><td colspan="7" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+
+        if (!state.roster.length) await loadContexteClasse();
+
+        try {
+          const payload = await apiFetch(ENDPOINTS.disciplineBySequence(state.sequenceActiveId));
+          const inscriptionIds = new Set(state.roster.map(i => i.id));
+          const items = (payload.data || []).filter(d => inscriptionIds.has(d.inscription_id));
+          state.disciplineIndex = {};
+          items.forEach(d => { state.disciplineIndex[d.inscription_id] = d; });
+        } catch (e) {
+          state.disciplineIndex = {};
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty">${e.message}</td></tr>`;
+          showToast(`Discipline : ${e.message}`, "error");
+          return;
+        }
+
+        renderGrilleDiscipline(tbody);
+        document.getElementById("disciplineGridCount").textContent = `${Object.keys(state.disciplineIndex).length} enregistrement(s)`;
+        updateStatsDiscipline();
+      }
+
+      function renderGrilleDiscipline(tbody) {
+        const roster = rosterTriee();
+        if (!roster.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty">Aucun élève inscrit dans cette classe pour l'année sélectionnée.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = roster.map(insc => {
+          const d = state.disciplineIndex[insc.id] || {};
+          return `<tr data-inscription-row="${insc.id}" data-discipline-id="${d.id || ''}">
+            <td class="eleve-col">
+              <div class="eleve-identite">
+                <div class="eleve-avatar">${eleveInitiales(insc)}</div>
+                <div>
+                  <div class="eleve-nom">${eleveNomComplet(insc)}</div>
+                  <div class="eleve-matricule">${(getEleve(insc).matricule) || ""}</div>
+                </div>
+              </div>
+            </td>
+            <td><input type="number" class="disc-input" min="0" data-field="absences_justifiees" value="${d.absences_justifiees || 0}"></td>
+            <td><input type="number" class="disc-input" min="0" data-field="absences_non_justifiees" value="${d.absences_non_justifiees || 0}"></td>
+            <td><input type="number" class="disc-input" min="0" data-field="retards" value="${d.retards || 0}"></td>
+            <td><input type="number" class="disc-input" min="0" data-field="exclusions" value="${d.exclusions || 0}"></td>
+            <td><input type="text" class="disc-obs-input" data-field="observation" value="${(d.observation || "").replace(/"/g, '&quot;')}" placeholder="Observation…"></td>
+            <td>
+              <button class="btn btn-primary btn-sm js-disc-save"><i class="fa-solid fa-check"></i> Enregistrer</button>
+            </td>
+          </tr>`;
+        }).join("");
+
+        tbody.querySelectorAll("input").forEach(input => {
+          input.addEventListener("input", () => input.closest("tr").classList.add("disc-row-dirty"));
+        });
+        tbody.querySelectorAll(".js-disc-save").forEach(btn => {
+          btn.addEventListener("click", () => saveDisciplineRow(btn.closest("tr")));
+        });
+      }
+
+      async function saveDisciplineRow(row) {
+        const inscriptionId = parseInt(row.dataset.inscriptionRow, 10);
+        const disciplineId = row.dataset.disciplineId;
+        const data = {
+          inscription_id: inscriptionId,
+          sequence_id: state.sequenceActiveId,
+          absences_justifiees: parseInt(row.querySelector('[data-field="absences_justifiees"]').value, 10) || 0,
+          absences_non_justifiees: parseInt(row.querySelector('[data-field="absences_non_justifiees"]').value, 10) || 0,
+          retards: parseInt(row.querySelector('[data-field="retards"]').value, 10) || 0,
+          exclusions: parseInt(row.querySelector('[data-field="exclusions"]').value, 10) || 0,
+          observation: row.querySelector('[data-field="observation"]').value.trim() || null
+        };
+
+        try {
+          let payload;
+          if (disciplineId) {
+            payload = await apiFetch(ENDPOINTS.disciplineById(disciplineId), { method: "PUT", body: JSON.stringify(data) });
+          } else {
+            payload = await apiFetch(ENDPOINTS.discipline, { method: "POST", body: JSON.stringify(data) });
+          }
+          const d = payload.data;
+          state.disciplineIndex[inscriptionId] = d;
+          row.dataset.disciplineId = d.id;
+          row.classList.remove("disc-row-dirty");
+          document.getElementById("disciplineGridCount").textContent = `${Object.keys(state.disciplineIndex).length} enregistrement(s)`;
+          updateStatsDiscipline();
+          showToast("Discipline enregistrée avec succès.");
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      /* Cumul discipline (trimestre / année) */
+      const modalCumul = new bootstrap.Modal(document.getElementById("modalCumulDiscipline"));
+
+      function renderCumulResult(titre, agg) {
+        document.getElementById("modalCumulTitle").innerHTML = `<i class="fa-solid fa-layer-group me-2 text-primary"></i>${titre}`;
+        document.getElementById("modalCumulBody").innerHTML = `
+          <div class="row g-3 text-center">
+            <div class="col-6"><div class="fw-bold fs-5">${agg.absences_justifiees}</div><div class="text-muted" style="font-size:11px;">Abs. justifiées</div></div>
+            <div class="col-6"><div class="fw-bold fs-5">${agg.absences_non_justifiees}</div><div class="text-muted" style="font-size:11px;">Abs. injustifiées</div></div>
+            <div class="col-6"><div class="fw-bold fs-5">${agg.retards}</div><div class="text-muted" style="font-size:11px;">Retards</div></div>
+            <div class="col-6"><div class="fw-bold fs-5">${agg.exclusions}</div><div class="text-muted" style="font-size:11px;">Exclusions</div></div>
+          </div>
+          ${agg.observations ? `<hr><p class="mb-0" style="font-size:12px;"><strong>Observations :</strong> ${agg.observations}</p>` : ""}`;
+      }
+
+      document.getElementById("btnCumulTrimestre").addEventListener("click", async () => {
+        const inscriptionId = document.getElementById("cumulEleveSelect").value;
+        if (!inscriptionId || !state.trimestreActiveId) { showToast("Choisissez un élève.", "error"); return; }
+        modalCumul.show();
+        document.getElementById("modalCumulBody").innerHTML = `<div class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</div>`;
+        try {
+          const payload = await apiFetch(ENDPOINTS.disciplineAggregationTrimestre(inscriptionId, state.trimestreActiveId));
+          renderCumulResult("Cumul du trimestre", payload.data);
+        } catch (e) {
+          document.getElementById("modalCumulBody").innerHTML = `<div class="grid-empty">${e.message}</div>`;
+        }
+      });
+
+      document.getElementById("btnCumulAnnee").addEventListener("click", async () => {
+        const inscriptionId = document.getElementById("cumulEleveSelect").value;
+        if (!inscriptionId || !state.anneeActiveId) { showToast("Choisissez un élève.", "error"); return; }
+        modalCumul.show();
+        document.getElementById("modalCumulBody").innerHTML = `<div class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</div>`;
+        try {
+          const payload = await apiFetch(ENDPOINTS.disciplineAggregationAnnee(inscriptionId, state.anneeActiveId));
+          renderCumulResult("Cumul de l'année", payload.data);
+        } catch (e) {
+          document.getElementById("modalCumulBody").innerHTML = `<div class="grid-empty">${e.message}</div>`;
+        }
+      });
+
+      /* ═══════════════════════════════════════
+         ONGLET MOYENNES
+      ═══════════════════════════════════════ */
+      async function loadGrilleMoyennes() {
+        const tbody = document.querySelector("#grilleMoyennes tbody");
+        if (!state.classeActiveId || !state.sequenceActiveId) {
+          tbody.innerHTML = `<tr><td colspan="4" class="grid-empty">Sélectionnez une classe et une séquence.</td></tr>`;
+          return;
+        }
+        // S'assurer que les notes de la classe/séquence sont chargées
+        if (!Object.keys(state.notesIndex).length && !state._notesLoadedOnce) { /* rien : évite double appel initial */ }
+        tbody.innerHTML = `<tr><td colspan="4" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Calcul des moyennes…</td></tr>`;
+
+        const roster = rosterTriee();
+        if (!roster.length) {
+          tbody.innerHTML = `<tr><td colspan="4" class="grid-empty">Aucun élève inscrit dans cette classe pour l'année sélectionnée.</td></tr>`;
+          return;
+        }
+
+        const moyennes = roster.map(insc => ({
+          inscription: insc,
+          moyenne: calculerMoyenneEleve(insc.id)
+        })).sort((a, b) => (b.moyenne ?? -1) - (a.moyenne ?? -1));
+
+        tbody.innerHTML = moyennes.map((m, idx) => {
+          const rang = idx + 1;
+          const rangClass = rang === 1 ? "top1" : rang === 2 ? "top2" : rang === 3 ? "top3" : "";
+          const v = m.moyenne;
+          let badge = `<span class="badge badge-neutral">—</span>`;
+          if (v !== null) {
+            if (v >= 10) badge = `<span class="badge badge-admis">Admis</span>`;
+            else if (v >= 8) badge = `<span class="badge badge-rattrapage">À surveiller</span>`;
+            else badge = `<span class="badge badge-redoublant">Insuffisant</span>`;
+          }
+          return `<tr>
+            <td><span class="rang-badge ${rangClass}">${rang}</span></td>
+            <td class="eleve-col">
+              <div class="eleve-identite">
+                <div class="eleve-avatar">${eleveInitiales(m.inscription)}</div>
+                <div>
+                  <div class="eleve-nom">${eleveNomComplet(m.inscription)}</div>
+                  <div class="eleve-matricule">${(getEleve(m.inscription).matricule) || ""}</div>
+                </div>
+              </div>
+            </td>
+            <td class="moyenne-cell">${formatMoyenne(v)}</td>
+            <td>${badge}</td>
+          </tr>`;
+        }).join("");
+
+        document.getElementById("moyennesGridCount").textContent = `${roster.length} élève(s)`;
+        const classeNom = (state.classes.find(c => c.id == state.classeActiveId) || {}).libelle;
+        updateGridTitles(classeNom);
+        updateStatsMoyennes(moyennes);
+      }
+
+      /* ═══════════════════════════════════════
+         ONGLETS : bascule + rafraîchissement
+      ═══════════════════════════════════════ */
+      function refreshActiveTab() {
+        const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
+        if (activeTab === "tab-notes") loadGrilleNotes();
+        else if (activeTab === "tab-discipline") loadGrilleDiscipline();
+        else loadGrilleMoyennes();
+      }
+
+      function bindTabs() {
+        document.querySelectorAll("#evalTabs button[data-bs-toggle='tab']").forEach((btn) => {
+          btn.addEventListener("shown.bs.tab", () => refreshActiveTab());
+        });
+      }
+
+      /* ═══════════════════════════════════════
+         FILTRES : changements
+      ═══════════════════════════════════════ */
+      document.getElementById("filterAnnee").addEventListener("change", async function () {
+        state.anneeActiveId = this.value || null;
+        await loadTrimestres();
+        refreshActiveTab();
+      });
+      document.getElementById("filterClasse").addEventListener("change", function () {
+        state.classeActiveId = this.value || null;
+        const nom = this.options[this.selectedIndex] ? this.options[this.selectedIndex].textContent : "—";
+        updateGridTitles(nom);
+        refreshActiveTab();
+      });
+      document.getElementById("filterTrimestre").addEventListener("change", async function () {
+        state.trimestreActiveId = this.value || null;
+        await loadSequences();
+        refreshActiveTab();
+      });
+      document.getElementById("filterSequence").addEventListener("change", function () {
+        state.sequenceActiveId = this.value || null;
+        refreshActiveTab();
+      });
+
+      /* ═══════════════════════════════════════
+         IMPRESSION
+      ═══════════════════════════════════════ */
+      const ETABLISSEMENT = { nom: "LYCEE BILINGUE DE DEIDO - DOUALA", ville: "Douala" };
+
+      function anneeActiveLibelle() {
+        const a = state.annees.find(a => a.id == state.anneeActiveId);
+        return a ? a.libelle : "—";
+      }
+      function classeActiveLibelle() {
+        const c = state.classes.find(c => c.id == state.classeActiveId);
+        return c ? c.libelle : "—";
+      }
+      function sequenceActiveLibelle() {
+        const s = state.sequences.find(s => s.id == state.sequenceActiveId);
+        return s ? s.libelle : "—";
+      }
+
+      function buildEnteteImpression(sousTitre, champs) {
+        return `
+          <div class="print-header-top">
+            <div class="print-etab">
+              <div class="print-etab-nom">${ETABLISSEMENT.nom}</div>
+              <div class="print-annee">Année scolaire : ${anneeActiveLibelle()}</div>
+            </div>
+            <div class="print-titre">
+              <div class="print-titre-principal">RELEVÉ D'ÉVALUATION</div>
+              <div class="print-titre-secondaire">${sousTitre}</div>
+            </div>
+          </div>
+          <div class="print-champs">
+            ${champs.map(c => `<div class="print-champ"><span>${c.label}</span> : <strong>${c.valeur}</strong></div>`).join("")}
+          </div>`;
+      }
+
+      function buildPiedImpression() {
+        const aujourdhui = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+        return `
+          <div class="print-footer">
+            <div>${ETABLISSEMENT.ville}, le ${aujourdhui}</div>
+            <div class="print-signatures">
+              <div class="print-signature">Le Professeur principal</div>
+              <div class="print-signature">Le Censeur</div>
+            </div>
+          </div>`;
+      }
+
+      function buildTableauImpressionNotes() {
+        const roster = rosterTriee();
+        const matieres = state.matieresClasse;
+        const head = `<th class="print-eleve-col">Élève</th>` + matieres.map(mc => `<th>${getMatiereNom(mc)}<br><span style="font-weight:400;">Coef. ${getCoefficient(mc)}</span></th>`).join("") + `<th>Moyenne</th>`;
+        const rows = roster.map(insc => {
+          const cells = matieres.map(mc => {
+            const note = state.notesIndex[`${insc.id}|${mc.id}`];
+            if (!note) return `<td>—</td>`;
+            return `<td>${note.absent ? "ABS" : Number(note.valeur).toFixed(2)}</td>`;
+          }).join("");
+          return `<tr><td class="print-eleve-col">${eleveNomComplet(insc)}</td>${cells}<td><strong>${formatMoyenne(calculerMoyenneEleve(insc.id))}</strong></td></tr>`;
+        }).join("");
+        return `<table class="print-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function buildTableauImpressionDiscipline() {
+        const roster = rosterTriee();
+        const head = `<th class="print-eleve-col">Élève</th><th>Abs. just.</th><th>Abs. injust.</th><th>Retards</th><th>Exclusions</th><th>Observation</th>`;
+        const rows = roster.map(insc => {
+          const d = state.disciplineIndex[insc.id] || {};
+          return `<tr><td class="print-eleve-col">${eleveNomComplet(insc)}</td><td>${d.absences_justifiees || 0}</td><td>${d.absences_non_justifiees || 0}</td><td>${d.retards || 0}</td><td>${d.exclusions || 0}</td><td>${d.observation || ""}</td></tr>`;
+        }).join("");
+        return `<table class="print-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function buildTableauImpressionMoyennes() {
+        const roster = rosterTriee();
+        const moyennes = roster.map(insc => ({ insc, moyenne: calculerMoyenneEleve(insc.id) }))
+          .sort((a, b) => (b.moyenne ?? -1) - (a.moyenne ?? -1));
+        const head = `<th style="width:40px;">Rang</th><th class="print-eleve-col">Élève</th><th>Moyenne</th><th>Appréciation</th>`;
+        const rows = moyennes.map((m, idx) => {
+          const v = m.moyenne;
+          const appr = v === null ? "—" : v >= 10 ? "Admis" : v >= 8 ? "À surveiller" : "Insuffisant";
+          return `<tr><td>${idx + 1}</td><td class="print-eleve-col">${eleveNomComplet(m.insc)}</td><td>${formatMoyenne(v)}</td><td>${appr}</td></tr>`;
+        }).join("");
+        return `<table class="print-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function lancerImpression(contenuHtml) {
+        const zone = document.getElementById("zoneImpression");
+        zone.innerHTML = `<div class="print-sheet">${contenuHtml}</div>`;
+        document.body.classList.add("mode-impression");
+        window.print();
+      }
+
+      window.addEventListener("afterprint", () => {
+        document.body.classList.remove("mode-impression");
+        document.getElementById("zoneImpression").innerHTML = "";
+      });
+
+      document.getElementById("btnImprimer").addEventListener("click", () => {
+        const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
+        const champs = [
+          { label: "Classe", valeur: classeActiveLibelle() },
+          { label: "Séquence", valeur: sequenceActiveLibelle() }
+        ];
+        if (activeTab === "tab-notes") {
+          lancerImpression(buildEnteteImpression("SAISIE DES NOTES", champs) + buildTableauImpressionNotes() + buildPiedImpression());
+        } else if (activeTab === "tab-discipline") {
+          lancerImpression(buildEnteteImpression("DISCIPLINE", champs) + buildTableauImpressionDiscipline() + buildPiedImpression());
+        } else {
+          lancerImpression(buildEnteteImpression("MOYENNES & CLASSEMENT", champs) + buildTableauImpressionMoyennes() + buildPiedImpression());
+        }
+      });
+
+      /* ═══════════════════════════════════════════════
+         BULLETINS DE NOTES ANNUELS
+         (bulletin individuel ou bulletins de toute la classe,
+         sur le modèle du bulletin annuel papier de l'établissement)
+      ═══════════════════════════════════════════════ */
+
+      // Barèmes d'appréciation — ajustables selon les règles de l'établissement.
+      const BAREME_APPRECIATION = [
+        { min: 16, label: "A+" },
+        { min: 12, label: "A" },
+        { min: 10, label: "ECA" },
+        { min: -Infinity, label: "NA" }
+      ];
+      const BAREME_MENTION = [
+        { min: 16, label: "Très bien" },
+        { min: 14, label: "Bien" },
+        { min: 12, label: "Assez bien" },
+        { min: 10, label: "Passable" },
+        { min: 8, label: "Médiocre" },
+        { min: -Infinity, label: "Insuffisant" }
+      ];
+
+      function appreciationMatiere(v) {
+        if (v === null || v === undefined) return "—";
+        return BAREME_APPRECIATION.find(b => v >= b.min).label;
+      }
+      function mentionAnnuelle(v) {
+        if (v === null || v === undefined) return "—";
+        return BAREME_MENTION.find(b => v >= b.min).label;
+      }
+      function decisionAnnuelle(v) {
+        if (v === null || v === undefined) return "—";
+        if (v >= 10) return "Admis(e) en classe supérieure";
+        if (v >= 8) return "Admis(e) à l'examen de rattrapage";
+        return "Redoublant(e)";
+      }
+      function getGroupeMatiere(mc) {
+        return (mc && (mc.groupe || mc.categorie ||
+          (mc.matiere && (mc.matiere.groupe || mc.matiere.categorie)))) || null;
+      }
+
+      state.sequencesAnnuelles = [];
+      state.notesAnnuelIndex = {};
+      state.disciplineAnnuelIndex = {};
+      state._anneeDataLoadedFor = null;
+
+      /* Charge, pour la classe et l'année actives, toutes les séquences de
+         tous les trimestres ainsi que les notes et la discipline associées. */
+      async function chargerDonneesAnnuelles(force) {
+        if (!state.anneeActiveId || !state.classeActiveId) {
+          throw new Error("Sélectionnez une année scolaire et une classe.");
+        }
+        const cacheKey = `${state.anneeActiveId}|${state.classeActiveId}`;
+        if (!force && state._anneeDataLoadedFor === cacheKey) return;
+
+        await loadContexteClasse();
+        if (!state.roster.length) throw new Error("Aucun élève inscrit dans cette classe pour cette année.");
+        if (!state.matieresClasse.length) throw new Error("Aucune matière affectée à cette classe.");
+
+        const trimPayload = await apiFetch(ENDPOINTS.trimestresByAnnee(state.anneeActiveId));
+        const trimestres = (trimPayload.data || []).sort((a, b) => a.numero - b.numero);
+        if (!trimestres.length) throw new Error("Aucun trimestre trouvé pour cette année scolaire.");
+
+        const seqLists = await Promise.all(trimestres.map(t =>
+          apiFetch(ENDPOINTS.sequencesByTrimestre(t.id)).then(p =>
+            (p.data || []).map(s => ({ ...s, trimestre_id: t.id, trimestre_libelle: t.libelle, trimestre_numero: t.numero }))
+          )
+        ));
+        const sequences = seqLists.flat().sort((a, b) =>
+          (a.trimestre_numero - b.trimestre_numero) || (a.numero - b.numero)
+        );
+        state.sequencesAnnuelles = sequences;
+
+        const inscriptionIds = new Set(state.roster.map(i => i.id));
+        const matiereIds = new Set(state.matieresClasse.map(mc => mc.id));
+        state.notesAnnuelIndex = {};
+        state.disciplineAnnuelIndex = {};
+
+        await Promise.all(sequences.map(async seq => {
+          try {
+            const notesP = await apiFetch(ENDPOINTS.notesBySequence(seq.id));
+            (notesP.data || []).forEach(n => {
+              if (inscriptionIds.has(n.inscription_id) && matiereIds.has(n.matiere_classe_id)) {
+                state.notesAnnuelIndex[`${seq.id}|${n.inscription_id}|${n.matiere_classe_id}`] = n;
+              }
+            });
+          } catch (e) { /* séquence sans notes saisies */ }
+          try {
+            const discP = await apiFetch(ENDPOINTS.disciplineBySequence(seq.id));
+            (discP.data || []).forEach(d => {
+              if (inscriptionIds.has(d.inscription_id)) {
+                state.disciplineAnnuelIndex[`${seq.id}|${d.inscription_id}`] = d;
+              }
+            });
+          } catch (e) { /* séquence sans discipline saisie */ }
+        }));
+
+        state._anneeDataLoadedFor = cacheKey;
+      }
+
+      function moyenneEleveSequenceAnnuelle(inscriptionId, sequenceId) {
+        let totalPondere = 0, totalCoef = 0;
+        state.matieresClasse.forEach(mc => {
+          const note = state.notesAnnuelIndex[`${sequenceId}|${inscriptionId}|${mc.id}`];
+          if (note && !note.absent && note.valeur !== null && note.valeur !== undefined) {
+            const coef = getCoefficient(mc);
+            totalPondere += Number(note.valeur) * coef;
+            totalCoef += coef;
+          }
+        });
+        return totalCoef > 0 ? (totalPondere / totalCoef) : null;
+      }
+
+      function moyenneMatiereAnnuelleEleve(inscriptionId, matiereId) {
+        const vals = [];
+        state.sequencesAnnuelles.forEach(seq => {
+          const note = state.notesAnnuelIndex[`${seq.id}|${inscriptionId}|${matiereId}`];
+          if (note && !note.absent && note.valeur !== null && note.valeur !== undefined) vals.push(Number(note.valeur));
+        });
+        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      }
+
+      function moyenneGeneraleAnnuelleEleve(inscriptionId) {
+        let totalPondere = 0, totalCoef = 0;
+        state.matieresClasse.forEach(mc => {
+          const v = moyenneMatiereAnnuelleEleve(inscriptionId, mc.id);
+          if (v !== null) {
+            const coef = getCoefficient(mc);
+            totalPondere += v * coef;
+            totalCoef += coef;
+          }
+        });
+        return totalCoef > 0 ? (totalPondere / totalCoef) : null;
+      }
+
+      function rangDansListe(inscriptionId, valeurFn) {
+        const classement = state.roster
+          .map(insc => ({ id: insc.id, val: valeurFn(insc.id) }))
+          .filter(x => x.val !== null)
+          .sort((a, b) => b.val - a.val);
+        const moi = classement.find(x => x.id === inscriptionId);
+        if (!moi) return null;
+        return 1 + classement.filter(x => x.val > moi.val).length;
+      }
+      function rangMatiereEleve(matiereId, inscriptionId) {
+        return rangDansListe(inscriptionId, id => moyenneMatiereAnnuelleEleve(id, matiereId));
+      }
+      function rangGeneralEleve(inscriptionId) {
+        return rangDansListe(inscriptionId, id => moyenneGeneraleAnnuelleEleve(id));
+      }
+      function rangSequenceEleve(sequenceId, inscriptionId) {
+        return rangDansListe(inscriptionId, id => moyenneEleveSequenceAnnuelle(id, sequenceId));
+      }
+
+      function statsClasseSequence(sequenceId) {
+        const vals = state.roster.map(insc => moyenneEleveSequenceAnnuelle(insc.id, sequenceId)).filter(v => v !== null);
+        if (!vals.length) return { moyenne: null, pctReussite: null, min: null, max: null };
+        return {
+          moyenne: vals.reduce((a, b) => a + b, 0) / vals.length,
+          pctReussite: (vals.filter(v => v >= 10).length / vals.length) * 100,
+          min: Math.min(...vals),
+          max: Math.max(...vals)
+        };
+      }
+
+      function fmtNote(v) { return (v === null || v === undefined) ? "—" : Number(v).toFixed(2); }
+
+      /* ─────────── Construction du HTML d'un bulletin ─────────── */
+      function buildBulletinEleveHTML(insc) {
+        const e = getEleve(insc);
+        const matieres = state.matieresClasse;
+        const sequences = state.sequencesAnnuelles;
+        const nbColsFixes = 5; // Moy. An | Coef. | Moy x Coef | Rang | Appréciation
+        const colCount = 1 + sequences.length + nbColsFixes;
+
+        function ligneMatiere(mc) {
+          const seqCells = sequences.map(seq => {
+            const note = state.notesAnnuelIndex[`${seq.id}|${insc.id}|${mc.id}`];
+            if (!note) return `<td class="cell-vide">—</td>`;
+            return `<td>${note.absent ? "Abs" : Number(note.valeur).toFixed(2)}</td>`;
+          }).join("");
+          const moyAn = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
+          const coef = getCoefficient(mc);
+          const moyCoef = moyAn !== null ? moyAn * coef : null;
+          const rang = moyAn !== null ? rangMatiereEleve(mc.id, insc.id) : null;
+          return `<tr>
+            <td class="matiere-col">${getMatiereNom(mc)}</td>
+            ${seqCells}
+            <td>${fmtNote(moyAn)}</td>
+            <td>${coef}</td>
+            <td>${moyCoef !== null ? moyCoef.toFixed(2) : "—"}</td>
+            <td>${rang !== null ? rang + "ème" : "Non classé(e)"}</td>
+            <td>${appreciationMatiere(moyAn)}</td>
+          </tr>`;
+        }
+
+        function blocGroupe(sousTotalLabel, liste) {
+          let totalCoef = 0, totalPondere = 0;
+          liste.forEach(mc => {
+            const moyAn = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
+            if (moyAn !== null) { totalCoef += getCoefficient(mc); totalPondere += moyAn * getCoefficient(mc); }
+          });
+          const lignes = liste.map(ligneMatiere).join("");
+          const moyGroupe = totalCoef > 0 ? totalPondere / totalCoef : null;
+          return `${sousTotalLabel ? `<tr class="groupe-row"><td colspan="${colCount}">${sousTotalLabel}</td></tr>` : ""}
+            ${lignes}
+            <tr class="groupe-total">
+              <td class="matiere-col">Sous-total</td><td colspan="${sequences.length}"></td>
+              <td></td><td>${totalCoef}</td><td>${totalPondere.toFixed(2)}</td>
+              <td colspan="2">Moy/20 : ${fmtNote(moyGroupe)}</td>
+            </tr>`;
+        }
+
+        // Regroupement des matières si un champ groupe/catégorie est fourni par l'API
+        const groupes = {};
+        const sansGroupe = [];
+        matieres.forEach(mc => {
+          const g = getGroupeMatiere(mc);
+          if (g) { (groupes[g] = groupes[g] || []).push(mc); } else sansGroupe.push(mc);
+        });
+        const nomsGroupes = Object.keys(groupes);
+        let corpsTable;
+        if (nomsGroupes.length) {
+          corpsTable = nomsGroupes.map(g => blocGroupe(g, groupes[g])).join("") +
+            (sansGroupe.length ? blocGroupe("Autres enseignements", sansGroupe) : "");
+        } else {
+          corpsTable = matieres.map(ligneMatiere).join("");
+        }
+
+        const moyenneGenerale = moyenneGeneraleAnnuelleEleve(insc.id);
+        const rangGeneral = moyenneGenerale !== null ? rangGeneralEleve(insc.id) : null;
+        let totalCoefGen = 0, totalPondereGen = 0;
+        matieres.forEach(mc => {
+          const v = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
+          if (v !== null) { totalCoefGen += getCoefficient(mc); totalPondereGen += v * getCoefficient(mc); }
+        });
+
+        const entete = `<th class="matiere-col">Matières</th>` +
+          sequences.map(seq => `<th>${seq.libelle}</th>`).join("") +
+          `<th>Moy. An</th><th>Coef.</th><th>Moy x Coef</th><th>Rang</th><th>Appréciation</th>`;
+
+        const ligneTotal = `<tr class="total-general">
+          <td class="matiere-col">TOTAL GÉNÉRAL</td><td colspan="${sequences.length}"></td>
+          <td>${fmtNote(moyenneGenerale)}</td><td>${totalCoefGen}</td><td>${totalPondereGen.toFixed(2)}</td>
+          <td>${rangGeneral !== null ? `${rangGeneral}ème / ${state.roster.length}` : "—"}</td><td></td>
+        </tr>`;
+
+        // Récapitulatif travail
+        const ligneMoyEleve = sequences.map(seq => `<td>${fmtNote(moyenneEleveSequenceAnnuelle(insc.id, seq.id))}</td>`).join("")
+          + `<td><strong>${fmtNote(moyenneGenerale)}</strong></td>`;
+        const ligneRangEleve = sequences.map(seq => {
+          const r = rangSequenceEleve(seq.id, insc.id);
+          return `<td>${r !== null ? `${r}ème` : "—"}</td>`;
+        }).join("") + `<td><strong>${rangGeneral !== null ? `${rangGeneral}ème / ${state.roster.length}` : "—"}</strong></td>`;
+        const ligneMoyClasse = sequences.map(seq => `<td>${fmtNote(statsClasseSequence(seq.id).moyenne)}</td>`).join("")
+          + `<td>—</td>`;
+
+        const recapTravail = `
+          <div class="bulletin-recap-bloc">
+            <div class="titre-bloc">Récapitulatif du travail</div>
+            <table>
+              <thead><tr><th class="matiere-col">Indicateur</th>${sequences.map(s => `<th>${s.libelle}</th>`).join("")}<th>Annuel</th></tr></thead>
+              <tbody>
+                <tr><td class="matiere-col">Moyenne de l'élève</td>${ligneMoyEleve}</tr>
+                <tr><td class="matiere-col">Rang</td>${ligneRangEleve}</tr>
+                <tr><td class="matiere-col">Moyenne de la classe</td>${ligneMoyClasse}</tr>
+              </tbody>
+            </table>
+          </div>`;
+
+        // Récapitulatif discipline
+        function ligneDiscipline(champ) {
+          return sequences.map(seq => {
+            const d = state.disciplineAnnuelIndex[`${seq.id}|${insc.id}`];
+            return `<td>${d ? (d[champ] || 0) : 0}</td>`;
+          }).join("");
+        }
+        function totalDiscipline(champ) {
+          return sequences.reduce((sum, seq) => {
+            const d = state.disciplineAnnuelIndex[`${seq.id}|${insc.id}`];
+            return sum + (d ? (d[champ] || 0) : 0);
+          }, 0);
+        }
+        const recapDiscipline = `
+          <div class="bulletin-recap-bloc">
+            <div class="titre-bloc">Récapitulatif discipline</div>
+            <table>
+              <thead><tr><th class="matiere-col">Indicateur</th>${sequences.map(s => `<th>${s.libelle}</th>`).join("")}<th>Annuel</th></tr></thead>
+              <tbody>
+                <tr><td class="matiere-col">Abs. justifiées</td>${ligneDiscipline("absences_justifiees")}<td><strong>${totalDiscipline("absences_justifiees")}</strong></td></tr>
+                <tr><td class="matiere-col">Abs. injustifiées</td>${ligneDiscipline("absences_non_justifiees")}<td><strong>${totalDiscipline("absences_non_justifiees")}</strong></td></tr>
+                <tr><td class="matiere-col">Retards</td>${ligneDiscipline("retards")}<td><strong>${totalDiscipline("retards")}</strong></td></tr>
+                <tr><td class="matiere-col">Exclusions</td>${ligneDiscipline("exclusions")}<td><strong>${totalDiscipline("exclusions")}</strong></td></tr>
+              </tbody>
+            </table>
+          </div>`;
+
+        const observations = sequences
+          .map(seq => (state.disciplineAnnuelIndex[`${seq.id}|${insc.id}`] || {}).observation)
+          .filter(Boolean).join(" | ");
+
+        const aujourdhui = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+
+        return `<div class="bulletin-sheet">
+          <div class="bulletin-entete">
+            <div class="col-etab">
+              <div class="etab-pays">République du Cameroun</div>
+              <div class="etab-pays" style="font-style:italic;">Paix - Travail - Patrie</div>
+              <div class="etab-nom">${ETABLISSEMENT.nom}</div>
+            </div>
+            <div class="bulletin-titre-principale">
+              <div class="titre">Bulletin de notes annuel</div>
+            </div>
+            <div class="col-droite">
+              <div>Année scolaire : <strong>${anneeActiveLibelle()}</strong></div>
+              <div>Classe : <strong>${classeActiveLibelle()}</strong></div>
+              <div>Effectif : <strong>${state.roster.length}</strong></div>
+            </div>
+          </div>
+
+          <div class="bulletin-identite">
+            <div class="nom-eleve">${eleveNomComplet(insc)}</div>
+            <div class="champ"><span class="lbl">Matricule</span><span class="val">${e.matricule || "—"}</span></div>
+            <div class="champ"><span class="lbl">Sexe</span><span class="val">${e.sexe || "—"}</span></div>
+            <div class="champ"><span class="lbl">Classe</span><span class="val">${classeActiveLibelle()}</span></div>
+            <div class="champ"><span class="lbl">Effectif</span><span class="val">${state.roster.length}</span></div>
+          </div>
+
+          <table class="bulletin-table">
+            <thead><tr>${entete}</tr></thead>
+            <tbody>${corpsTable}${ligneTotal}</tbody>
+          </table>
+          <div class="bulletin-legende">(NA) Non Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(ECA) En Cours d'Acquisition&nbsp;&nbsp;·&nbsp;&nbsp;(A) Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(A+) Expert</div>
+
+          <div class="bulletin-recaps">
+            ${recapTravail}
+            ${recapDiscipline}
+          </div>
+
+          <div class="bulletin-observations">
+            <div class="lbl">Mention : ${mentionAnnuelle(moyenneGenerale)} — Décision du conseil de classe : ${decisionAnnuelle(moyenneGenerale)}</div>
+            ${observations ? `<div>${observations}</div>` : ""}
+          </div>
+
+          <div class="bulletin-footer">
+            <div>Fait à ${ETABLISSEMENT.ville}, le ${aujourdhui}</div>
+            <div class="print-signatures" style="display:flex;gap:40px;">
+              <div class="signature">Le Professeur principal</div>
+              <div class="signature">Le Censeur</div>
+              <div class="signature">Le Chef d'établissement</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      /* ─────────── Génération : élève / classe ─────────── */
+      async function genererBulletinEleve(inscriptionId) {
+        try {
+          await chargerDonneesAnnuelles();
+          const insc = state.roster.find(i => i.id == inscriptionId);
+          if (!insc) throw new Error("Élève introuvable dans la classe active.");
+          const html = buildBulletinEleveHTML(insc);
+          lancerImpression(html);
+        } catch (e) {
+          showToast(`Bulletin : ${e.message}`, "error");
+        }
+      }
+
+      async function genererBulletinsClasse() {
+        try {
+          showToast("Génération des bulletins en cours…");
+          await chargerDonneesAnnuelles();
+          const roster = rosterTriee();
+          const html = roster.map(insc => buildBulletinEleveHTML(insc)).join("");
+          lancerImpression(html);
+        } catch (e) {
+          showToast(`Bulletins de classe : ${e.message}`, "error");
+        }
+      }
+
+      const modalBulletinEleve = new bootstrap.Modal(document.getElementById("modalBulletinEleve"));
+
+      document.getElementById("btnBulletinEleve").addEventListener("click", () => {
+        if (!state.classeActiveId || !state.anneeActiveId) {
+          showToast("Sélectionnez une année scolaire et une classe.", "error");
+          return;
+        }
+        const select = document.getElementById("bulletinEleveSelect");
+        select.innerHTML = `<option value="">-- Choisir un élève --</option>` +
+          rosterTriee().map(insc => `<option value="${insc.id}">${eleveNomComplet(insc)}</option>`).join("");
+        modalBulletinEleve.show();
+      });
+
+      document.getElementById("btnConfirmerBulletinEleve").addEventListener("click", async () => {
+        const inscriptionId = document.getElementById("bulletinEleveSelect").value;
+        if (!inscriptionId) { showToast("Choisissez un élève.", "error"); return; }
+        modalBulletinEleve.hide();
+        await genererBulletinEleve(inscriptionId);
+      });
+
+      document.getElementById("btnBulletinClasse").addEventListener("click", async () => {
+        if (!state.classeActiveId || !state.anneeActiveId) {
+          showToast("Sélectionnez une année scolaire et une classe.", "error");
+          return;
+        }
+        if (!confirm(`Générer les bulletins de tous les élèves de la classe « ${classeActiveLibelle()} » ?`)) return;
+        await genererBulletinsClasse();
+      });
+
+      /* ═══════════════════════════════════════
+         EXPORT EXCEL (CSV)
+      ═══════════════════════════════════════ */
+      function csvEscape(value) {
+        const v = (value || "").toString().replace(/"/g, '""');
+        return `"${v}"`;
+      }
+
+      function downloadCSV(filename, rows) {
+        const csvContent = rows.map((r) => r.map(csvEscape).join(";")).join("\r\n");
+        const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      function exportNotesToCSV() {
+        const roster = rosterTriee();
+        const matieres = state.matieresClasse;
+        const rows = [["Élève", "Matricule", ...matieres.map(mc => `${getMatiereNom(mc)} (coef. ${getCoefficient(mc)})`), "Moyenne"]];
+        roster.forEach(insc => {
+          const vals = matieres.map(mc => {
+            const note = state.notesIndex[`${insc.id}|${mc.id}`];
+            if (!note) return "";
+            return note.absent ? "ABS" : Number(note.valeur).toFixed(2);
+          });
+          rows.push([eleveNomComplet(insc), (getEleve(insc).matricule) || "", ...vals, formatMoyenne(calculerMoyenneEleve(insc.id))]);
+        });
+        downloadCSV(`notes_${classeActiveLibelle()}_${sequenceActiveLibelle()}.csv`.replace(/\s+/g, "_"), rows);
+      }
+
+      function exportDisciplineToCSV() {
+        const roster = rosterTriee();
+        const rows = [["Élève", "Matricule", "Abs. justifiées", "Abs. injustifiées", "Retards", "Exclusions", "Observation"]];
+        roster.forEach(insc => {
+          const d = state.disciplineIndex[insc.id] || {};
+          rows.push([eleveNomComplet(insc), (getEleve(insc).matricule) || "", d.absences_justifiees || 0, d.absences_non_justifiees || 0, d.retards || 0, d.exclusions || 0, d.observation || ""]);
+        });
+        downloadCSV(`discipline_${classeActiveLibelle()}_${sequenceActiveLibelle()}.csv`.replace(/\s+/g, "_"), rows);
+      }
+
+      function exportMoyennesToCSV() {
+        const roster = rosterTriee();
+        const moyennes = roster.map(insc => ({ insc, moyenne: calculerMoyenneEleve(insc.id) }))
+          .sort((a, b) => (b.moyenne ?? -1) - (a.moyenne ?? -1));
+        const rows = [["Rang", "Élève", "Matricule", "Moyenne", "Appréciation"]];
+        moyennes.forEach((m, idx) => {
+          const v = m.moyenne;
+          const appr = v === null ? "—" : v >= 10 ? "Admis" : v >= 8 ? "À surveiller" : "Insuffisant";
+          rows.push([idx + 1, eleveNomComplet(m.insc), (getEleve(m.insc).matricule) || "", formatMoyenne(v), appr]);
+        });
+        downloadCSV(`moyennes_${classeActiveLibelle()}_${sequenceActiveLibelle()}.csv`.replace(/\s+/g, "_"), rows);
+      }
+
+      document.getElementById("btnExportExcel").addEventListener("click", () => {
+        const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
+        if (activeTab === "tab-notes") exportNotesToCSV();
+        else if (activeTab === "tab-discipline") exportDisciplineToCSV();
+        else exportMoyennesToCSV();
+        showToast("Le fichier CSV a été téléchargé (compatible Excel).");
+      });
+
+      /* ═══════════════════════════════════════
+         INIT
+      ═══════════════════════════════════════ */
+      async function init() {
+        bindTabs();
+        await loadAnnees();
+        await loadClasses();
+        await loadTrimestres();
+        await loadGrilleNotes();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matières — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body data-page="matieres">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Matières</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Gestion des Matières</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Gérez les groupes de matières, les matières et leurs affectations aux classes.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button">
+              <i class="fa-solid fa-file-export"></i> Exporter
+            </button>
+            <button class="btn btn-light btn-sm" type="button">
+              <i class="fa-solid fa-file-import"></i> Importer
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES (contextuelles selon l'onglet actif)
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow">
+          <!-- Injecté dynamiquement par JS selon l'onglet -->
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             ONGLETS PRINCIPAUX
+        ═══════════════════════════════════════════════ -->
+        <ul class="nav nav-tabs mb-3" id="matiereTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-groupes" data-bs-toggle="tab"
+                    data-bs-target="#pane-groupes" type="button" role="tab">
+              <i class="fa-solid fa-layer-group me-1"></i>Groupes de matières
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-matieres" data-bs-toggle="tab"
+                    data-bs-target="#pane-matieres" type="button" role="tab">
+              <i class="fa-solid fa-book-open me-1"></i>Matières
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-affectations" data-bs-toggle="tab"
+                    data-bs-target="#pane-affectations" type="button" role="tab">
+              <i class="fa-solid fa-link me-1"></i>Affectations Classe
+            </button>
+          </li>
+        </ul>
+
+        <!-- ═══════════════════════════════════════════════
+             CONTENU DES ONGLETS
+        ═══════════════════════════════════════════════ -->
+        <div class="tab-content" id="matiereTabsContent">
+
+          <!-- ─────────── ONGLET 1 : GROUPES DE MATIÈRES ─────────── -->
+          <div class="tab-pane fade show active" id="pane-groupes" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-layer-group me-2 text-primary"></i>Groupes de matières
+                  <span class="badge badge-primary ms-2" id="badge-groupes-count">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalGroupe" onclick="openGroupeModal()">
+                  <i class="fa-solid fa-plus"></i> Nouveau groupe
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="groupes-tbody">
+                      <tr><td colspan="3" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 2 : MATIÈRES ─────────── -->
+          <div class="tab-pane fade" id="pane-matieres" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-book-open me-2 text-primary"></i>Matières
+                  <span class="badge badge-primary ms-2" id="badge-matieres-count">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalMatiere" onclick="openMatiereModal()">
+                  <i class="fa-solid fa-plus"></i> Nouvelle matière
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Libellé</th>
+                        <th>Groupe</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="matieres-tbody">
+                      <tr><td colspan="4" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 3 : AFFECTATIONS MATIÈRE-CLASSE ─────────── -->
+          <div class="tab-pane fade" id="pane-affectations" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-link me-2 text-primary"></i>Affectations Matière → Classe
+                  <span class="badge badge-primary ms-2" id="badge-affectations-count">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAffectation" onclick="openAffectationModal()">
+                  <i class="fa-solid fa-plus"></i> Nouvelle affectation
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Classe</th>
+                        <th>Matière</th>
+                        <th>Enseignant</th>
+                        <th>Coefficient</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="affectations-tbody">
+                      <tr><td colspan="6" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODALS
+  ═══════════════════════════════════════════════ -->
+
+  <!-- Modal : Groupe de matière -->
+  <div class="modal fade" id="modalGroupe" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-groupe-title"><i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouveau groupe de matière</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="form-groupe" onsubmit="return false;">
+            <input type="hidden" id="groupe-id" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="groupe-libelle" placeholder="Ex : Langues vivantes" required>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" onclick="saveGroupe()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal : Matière -->
+  <div class="modal fade" id="modalMatiere" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-matiere-title"><i class="fa-solid fa-book me-2 text-primary"></i>Nouvelle matière</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="form-matiere" onsubmit="return false;">
+            <input type="hidden" id="matiere-id" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="matiere-libelle" placeholder="Ex : Mathématiques" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Groupe <span class="text-danger">*</span></label>
+                <select class="form-select" id="matiere-groupe" required>
+                  <option value="">-- Choisir --</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" onclick="saveMatiere()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal : Affectation Matière-Classe -->
+  <div class="modal fade" id="modalAffectation" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-affectation-title"><i class="fa-solid fa-link me-2 text-primary"></i>Nouvelle affectation</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="form-affectation" onsubmit="return false;">
+            <input type="hidden" id="affectation-id" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Classe <span class="text-danger">*</span></label>
+                <select class="form-select" id="affectation-classe" required>
+                  <option value="">-- Sélectionner --</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Matière <span class="text-danger">*</span></label>
+                <select class="form-select" id="affectation-matiere" required>
+                  <option value="">-- Sélectionner --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Enseignant <span class="text-danger">*</span></label>
+                <select class="form-select" id="affectation-enseignant" required>
+                  <option value="">-- Sélectionner --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Coefficient</label>
+                <input type="number" class="form-control" id="affectation-coeff" min="1" step="1" value="1">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" onclick="saveAffectation()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal : Confirmation suppression -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0" id="confirm-suppression-text">Supprimer cet élément ?</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btn-confirm-suppression"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2000" id="toast-container"></div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page : Matières -->
+  <script>
+  (function () {
+    "use strict";
+
+    const API = '/api/pedagogie';
+    const API_STRUCTURE = '/api/structure';
+
+    let groupesData = [];
+    let matieresData = [];
+    let classesData = [];
+    let enseignantsData = [];
+    let affectationsData = [];
+
+    /* ═══════════════════════════════════════════
+       TOAST (Bootstrap)
+       ═══════════════════════════════════════════ */
+    function toast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const bg = type === 'success' ? 'text-bg-success' : 'text-bg-danger';
+      const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
+      const el = document.createElement('div');
+      el.className = `toast align-items-center ${bg} border-0`;
+      el.setAttribute('role', 'alert');
+      el.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body"><i class="fa-solid ${icon} me-2"></i>${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>`;
+      container.appendChild(el);
+      const t = new bootstrap.Toast(el, { delay: 3500 });
+      t.show();
+      el.addEventListener('hidden.bs.toast', () => el.remove());
+    }
+
+    /* ═══════════════════════════════════════════
+       API HELPER
+       ═══════════════════════════════════════════ */
+    async function api(url, options = {}) {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erreur serveur');
+      return json;
+    }
+
+    function esc(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function populateSelect(selectId, items, valueField, labelFn, placeholder = '-- Sélectionner --') {
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = `<option value="">${placeholder}</option>`;
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item[valueField];
+        opt.textContent = labelFn(item);
+        sel.appendChild(opt);
+      });
+    }
+
+    /* ═══════════════════════════════════════════
+       STATS (contextuelles selon l'onglet actif)
+       ═══════════════════════════════════════════ */
+    function buildStatCard(s) {
+      return `
+        <div class="col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="d-flex align-items-start justify-content-between">
+              <div class="stat-icon ${s.color}"><i class="fa-solid ${s.icon}"></i></div>
+            </div>
+            <div class="stat-label">${s.label}</div>
+            <div class="stat-value">${s.value}</div>
+            <div class="stat-change ${s.up ? 'up' : 'down'}">
+              <i class="fa-solid ${s.up ? 'fa-arrow-up' : 'fa-minus'}"></i> ${s.change}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function updateStats(tabId) {
+      const row = document.getElementById('statsRow');
+      let stats = [];
+      if (tabId === 'tab-groupes') {
+        const groupesVides = groupesData.filter(g => !matieresData.some(m => m.groupe_id === g.id)).length;
+        const moyenne = groupesData.length ? (matieresData.length / groupesData.length).toFixed(1) : '0';
+        stats = [
+          { icon: 'fa-layer-group', color: 'primary', label: 'Groupes de matières', value: groupesData.length, change: 'Total', up: true },
+          { icon: 'fa-book-open',   color: 'info',    label: 'Matières', value: matieresData.length, change: 'Toutes matières', up: true },
+          { icon: 'fa-chart-simple', color: 'success', label: 'Moy. matières / groupe', value: moyenne, change: 'Répartition', up: true },
+          { icon: 'fa-triangle-exclamation', color: 'warning', label: 'Groupes vides', value: groupesVides, change: 'Sans matière', up: false }
+        ];
+      } else if (tabId === 'tab-matieres') {
+        const moyMatieresParGroupe = groupesData.length ? (matieresData.length / groupesData.length).toFixed(1) : '0';
+        stats = [
+          { icon: 'fa-book-open',   color: 'primary', label: 'Matières', value: matieresData.length, change: 'Total', up: true },
+          { icon: 'fa-layer-group', color: 'success', label: 'Groupes utilisés', value: new Set(matieresData.map(m => m.groupe_id)).size, change: 'Groupes distincts', up: true },
+          { icon: 'fa-chart-simple', color: 'info',    label: 'Moy. matières / groupe', value: moyMatieresParGroupe, change: 'Répartition', up: true },
+          { icon: 'fa-user-graduate', color: 'warning', label: 'Enseignants', value: enseignantsData.length, change: 'Disponibles', up: true }
+        ];
+      } else {
+        stats = [
+          { icon: 'fa-link',        color: 'primary', label: 'Affectations', value: affectationsData.length, change: 'Total', up: true },
+          { icon: 'fa-chalkboard',  color: 'info',    label: 'Classes', value: classesData.length, change: 'Disponibles', up: true },
+          { icon: 'fa-book-open',   color: 'success', label: 'Matières', value: matieresData.length, change: 'Disponibles', up: true },
+          { icon: 'fa-user-tie',    color: 'warning', label: 'Enseignants', value: enseignantsData.length, change: 'Disponibles', up: true }
+        ];
+      }
+      row.innerHTML = stats.map(buildStatCard).join('');
+    }
+
+    /* ═══════════════════════════════════════════
+       1. GROUPES DE MATIÈRES
+       ═══════════════════════════════════════════ */
+    async function loadGroupes() {
+      const tbody = document.getElementById('groupes-tbody');
+      try {
+        const res = await api(`${API}/groupes-matiere`);
+        groupesData = res.data || [];
+        document.getElementById('badge-groupes-count').textContent = groupesData.length;
+        if (!groupesData.length) {
+          tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-4"><i class="fa-solid fa-layer-group me-1"></i>Aucun groupe de matière</td></tr>`;
+        } else {
+          tbody.innerHTML = groupesData.map((g, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td><strong>${esc(g.libelle)}</strong></td>
+              <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light" title="Modifier" onclick="editGroupe(${g.id})"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-icon btn-sm btn-light text-danger" title="Supprimer" onclick="confirmDeleteGroupe(${g.id})"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4"><i class="fa-solid fa-triangle-exclamation me-1"></i>Erreur de chargement</td></tr>`;
+      }
+      if (document.getElementById('tab-groupes').classList.contains('active')) updateStats('tab-groupes');
+    }
+
+    function openGroupeModal(groupe = null) {
+      document.getElementById('groupe-id').value = groupe ? groupe.id : '';
+      document.getElementById('groupe-libelle').value = groupe ? groupe.libelle : '';
+      document.getElementById('modal-groupe-title').innerHTML = groupe
+        ? '<i class="fa-solid fa-layer-group me-2 text-primary"></i>Modifier le groupe'
+        : '<i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouveau groupe de matière';
+    }
+    window.openGroupeModal = openGroupeModal;
+
+    window.editGroupe = function (id) {
+      const g = groupesData.find(x => x.id === id);
+      if (g) {
+        openGroupeModal(g);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGroupe')).show();
+      }
+    };
+
+    window.saveGroupe = async function () {
+      const id = document.getElementById('groupe-id').value;
+      const data = {
+        libelle: document.getElementById('groupe-libelle').value.trim()
+      };
+      if (!data.libelle) return toast('Le libellé est requis', 'error');
+
+      try {
+        if (id) {
+          await api(`${API}/groupes-matiere/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+          toast('Groupe mis à jour');
+        } else {
+          await api(`${API}/groupes-matiere`, { method: 'POST', body: JSON.stringify(data) });
+          toast('Groupe créé');
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGroupe')).hide();
+        loadGroupes();
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    };
+
+    window.confirmDeleteGroupe = function (id) {
+      askConfirmation('Supprimer ce groupe de matière ?', async () => {
+        try {
+          await api(`${API}/groupes-matiere/${id}`, { method: 'DELETE' });
+          toast('Groupe supprimé');
+          loadGroupes();
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    };
+
+    /* ═══════════════════════════════════════════
+       2. MATIÈRES
+       ═══════════════════════════════════════════ */
+    async function loadMatieres() {
+      const tbody = document.getElementById('matieres-tbody');
+      try {
+        const res = await api(`${API}/matieres`);
+        matieresData = res.data || [];
+        document.getElementById('badge-matieres-count').textContent = matieresData.length;
+        if (!matieresData.length) {
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><i class="fa-solid fa-book-open me-1"></i>Aucune matière</td></tr>`;
+        } else {
+          tbody.innerHTML = matieresData.map((m, i) => {
+            const groupeLabel = m.groupe ? m.groupe.libelle : (m.groupe_id ? `Groupe #${m.groupe_id}` : '—');
+            return `
+              <tr>
+                <td>${i + 1}</td>
+                <td><strong>${esc(m.libelle)}</strong></td>
+                <td><span class="badge badge-info">${esc(groupeLabel)}</span></td>
+                <td class="text-end">
+                  <button class="btn btn-icon btn-sm btn-light" title="Modifier" onclick="editMatiere(${m.id})"><i class="fa-solid fa-pen"></i></button>
+                  <button class="btn btn-icon btn-sm btn-light text-danger" title="Supprimer" onclick="confirmDeleteMatiere(${m.id})"><i class="fa-solid fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4"><i class="fa-solid fa-triangle-exclamation me-1"></i>Erreur de chargement</td></tr>`;
+      }
+      if (document.getElementById('tab-matieres').classList.contains('active')) updateStats('tab-matieres');
+    }
+
+    function openMatiereModal(matiere = null) {
+      document.getElementById('matiere-id').value = matiere ? matiere.id : '';
+      document.getElementById('matiere-libelle').value = matiere ? matiere.libelle : '';
+      document.getElementById('modal-matiere-title').innerHTML = matiere
+        ? '<i class="fa-solid fa-book me-2 text-primary"></i>Modifier la matière'
+        : '<i class="fa-solid fa-book me-2 text-primary"></i>Nouvelle matière';
+
+      populateSelect('matiere-groupe', groupesData, 'id', g => g.libelle);
+      if (matiere && matiere.groupe_id) {
+        document.getElementById('matiere-groupe').value = matiere.groupe_id;
+      }
+    }
+    window.openMatiereModal = openMatiereModal;
+
+    window.editMatiere = function (id) {
+      const m = matieresData.find(x => x.id === id);
+      if (m) {
+        openMatiereModal(m);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMatiere')).show();
+      }
+    };
+
+    window.saveMatiere = async function () {
+      const id = document.getElementById('matiere-id').value;
+      const data = {
+        libelle: document.getElementById('matiere-libelle').value.trim(),
+        groupe_id: parseInt(document.getElementById('matiere-groupe').value)
+      };
+      if (!data.libelle) return toast('Le libellé est requis', 'error');
+      if (!data.groupe_id) return toast('Le groupe est requis', 'error');
+
+      try {
+        if (id) {
+          await api(`${API}/matieres/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+          toast('Matière mise à jour');
+        } else {
+          await api(`${API}/matieres`, { method: 'POST', body: JSON.stringify(data) });
+          toast('Matière créée');
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMatiere')).hide();
+        loadMatieres();
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    };
+
+    window.confirmDeleteMatiere = function (id) {
+      askConfirmation('Supprimer cette matière ?', async () => {
+        try {
+          await api(`${API}/matieres/${id}`, { method: 'DELETE' });
+          toast('Matière supprimée');
+          loadMatieres();
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    };
+
+    /* ═══════════════════════════════════════════
+       3. AFFECTATIONS MATIÈRE-CLASSE
+       ═══════════════════════════════════════════ */
+    async function loadAffectations() {
+      const tbody = document.getElementById('affectations-tbody');
+      try {
+        const res = await api(`${API}/matieres-classe`);
+        affectationsData = res.data || [];
+        document.getElementById('badge-affectations-count').textContent = affectationsData.length;
+        if (!affectationsData.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4"><i class="fa-solid fa-link me-1"></i>Aucune affectation</td></tr>`;
+        } else {
+          tbody.innerHTML = affectationsData.map((a, i) => {
+            const classeLabel = a.classe ? a.classe.libelle : `Classe #${a.classe_id}`;
+            const matiereLabel = a.matiere ? a.matiere.libelle : `Matière #${a.matiere_id}`;
+            const enseignantLabel = a.enseignant ? `${a.enseignant.prenom} ${a.enseignant.nom}` : `Enseignant #${a.enseignant_id}`;
+            return `
+              <tr>
+                <td>${i + 1}</td>
+                <td><strong>${esc(classeLabel)}</strong></td>
+                <td>${esc(matiereLabel)}</td>
+                <td>${esc(enseignantLabel)}</td>
+                <td><span class="badge badge-warning">${a.coefficient}</span></td>
+                <td class="text-end">
+                  <button class="btn btn-icon btn-sm btn-light" title="Modifier" onclick="editAffectation(${a.id})"><i class="fa-solid fa-pen"></i></button>
+                  <button class="btn btn-icon btn-sm btn-light text-danger" title="Supprimer" onclick="confirmDeleteAffectation(${a.id})"><i class="fa-solid fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4"><i class="fa-solid fa-triangle-exclamation me-1"></i>Erreur de chargement</td></tr>`;
+      }
+      if (document.getElementById('tab-affectations').classList.contains('active')) updateStats('tab-affectations');
+    }
+
+    function openAffectationModal(affectation = null) {
+      document.getElementById('affectation-id').value = affectation ? affectation.id : '';
+      document.getElementById('affectation-coeff').value = affectation ? affectation.coefficient : 1;
+      document.getElementById('modal-affectation-title').innerHTML = affectation
+        ? '<i class="fa-solid fa-link me-2 text-primary"></i>Modifier l\'affectation'
+        : '<i class="fa-solid fa-link me-2 text-primary"></i>Nouvelle affectation';
+
+      populateSelect('affectation-classe', classesData, 'id', c => c.libelle || `Classe #${c.id}`);
+      populateSelect('affectation-matiere', matieresData, 'id', m => m.libelle);
+      populateSelect('affectation-enseignant', enseignantsData, 'id', e => `${e.prenom} ${e.nom}`);
+
+      if (affectation) {
+        document.getElementById('affectation-classe').value = affectation.classe_id;
+        document.getElementById('affectation-matiere').value = affectation.matiere_id;
+        document.getElementById('affectation-enseignant').value = affectation.enseignant_id;
+      }
+    }
+    window.openAffectationModal = openAffectationModal;
+
+    window.editAffectation = function (id) {
+      api(`${API}/matieres-classe/${id}`).then(res => {
+        if (res.success) {
+          openAffectationModal(res.data);
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAffectation')).show();
+        }
+      }).catch(e => toast(e.message, 'error'));
+    };
+
+    window.saveAffectation = async function () {
+      const id = document.getElementById('affectation-id').value;
+      const data = {
+        classe_id: parseInt(document.getElementById('affectation-classe').value),
+        matiere_id: parseInt(document.getElementById('affectation-matiere').value),
+        enseignant_id: parseInt(document.getElementById('affectation-enseignant').value),
+        coefficient: parseInt(document.getElementById('affectation-coeff').value) || 1
+      };
+      if (!data.classe_id) return toast('La classe est requise', 'error');
+      if (!data.matiere_id) return toast('La matière est requise', 'error');
+      if (!data.enseignant_id) return toast('L\'enseignant est requis', 'error');
+
+      try {
+        if (id) {
+          await api(`${API}/matieres-classe/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+          toast('Affectation mise à jour');
+        } else {
+          await api(`${API}/matieres-classe`, { method: 'POST', body: JSON.stringify(data) });
+          toast('Affectation créée');
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAffectation')).hide();
+        loadAffectations();
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    };
+
+    window.confirmDeleteAffectation = function (id) {
+      askConfirmation('Supprimer cette affectation ?', async () => {
+        try {
+          await api(`${API}/matieres-classe/${id}`, { method: 'DELETE' });
+          toast('Affectation supprimée');
+          loadAffectations();
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    };
+
+    /* ═══════════════════════════════════════════
+       CONFIRMATION DE SUPPRESSION
+       ═══════════════════════════════════════════ */
+    function askConfirmation(text, onConfirm) {
+      document.getElementById('confirm-suppression-text').textContent = text;
+      const modalEl = document.getElementById('modalConfirmSuppression');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      const btn = document.getElementById('btn-confirm-suppression');
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      newBtn.addEventListener('click', () => {
+        modal.hide();
+        onConfirm();
+      });
+      modal.show();
+    }
+
+    /* ═══════════════════════════════════════════
+       DONNÉES DE RÉFÉRENCE
+       ═══════════════════════════════════════════ */
+    async function loadReferenceData() {
+      try {
+        const [gRes, mRes, cRes, eRes] = await Promise.allSettled([
+          api(`${API}/groupes-matiere`),
+          api(`${API}/matieres`),
+          api(`${API_STRUCTURE}/classes`),
+          api(`${API}/enseignants`)
+        ]);
+        if (gRes.status === 'fulfilled' && gRes.value.success) groupesData = gRes.value.data || [];
+        if (mRes.status === 'fulfilled' && mRes.value.success) matieresData = mRes.value.data || [];
+        if (cRes.status === 'fulfilled' && cRes.value.success) classesData = cRes.value.data || [];
+        if (eRes.status === 'fulfilled' && eRes.value.success) enseignantsData = eRes.value.data || [];
+      } catch (e) {
+        console.warn('Erreur chargement données de référence', e);
+      }
+    }
+
+    /* ═══════════════════════════════════════════
+       ONGLETS : mise à jour des stats au changement
+       ═══════════════════════════════════════════ */
+    function bindTabs() {
+      document.querySelectorAll('#matiereTabs button[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', (e) => updateStats(e.target.id));
+      });
+    }
+
+    /* ═══════════════════════════════════════════
+       INIT
+       ═══════════════════════════════════════════ */
+    async function init() {
+      bindTabs();
+      await loadReferenceData();
+      updateStats('tab-groupes');
+      await Promise.all([loadGroupes(), loadMatieres(), loadAffectations()]);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+  </script>
+
+</body>
+</html>

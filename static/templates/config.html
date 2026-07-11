@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body data-page="config">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Configuration</li>
+          </ol>
+        </nav>
+
+        <!-- Titre -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Configuration</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Paramétrez les années scolaires, trimestres, séquences, cycles et classes de votre établissement.
+            </p>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS CONTEXTUELLES (selon l'onglet actif)
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow"></div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="configTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="navtab-annees" data-bs-toggle="tab" data-bs-target="#tab-annees" type="button" role="tab">
+              <i class="fa-solid fa-calendar-days me-1"></i> Années scolaires & Séquences
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="navtab-classes" data-bs-toggle="tab" data-bs-target="#tab-classes" type="button" role="tab">
+              <i class="fa-solid fa-chalkboard me-1"></i> Cycles & Classes
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+
+          <!-- ===================== TAB : ANNÉES / TRIMESTRES / SÉQUENCES ===================== -->
+          <div class="tab-pane fade show active" id="tab-annees" role="tabpanel">
+
+            <!-- ANNÉES SCOLAIRES -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-calendar-days me-2 text-primary"></i>Années scolaires
+                  <span class="badge badge-primary ms-2" id="badgeAnneesCount">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" id="btnNewAnnee">
+                  <i class="fa-solid fa-plus"></i> Nouvelle année
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Année scolaire</th>
+                        <th>Statut</th>
+                        <th>Trimestres</th>
+                        <th>Date de création</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyAnnees">
+                      <tr><td colspan="5" class="text-center text-muted py-4">Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- TRIMESTRES -->
+            <div class="card mb-3" id="cardTrimestres" style="display:none;">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-calendar-week me-2 text-primary"></i>Trimestres — <span id="lblAnneeTrimestres"></span>
+                  <span class="badge badge-primary ms-2" id="badgeTrimestresCount">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" id="btnNewTrimestre">
+                  <i class="fa-solid fa-plus"></i> Nouveau trimestre
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Trimestre</th>
+                        <th>Date de début</th>
+                        <th>Date de fin</th>
+                        <th>Séquences</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyTrimestres">
+                      <tr><td colspan="5" class="text-center text-muted py-4">Sélectionnez une année</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- SÉQUENCES -->
+            <div class="card" id="cardSequences" style="display:none;">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-list-check me-2 text-primary"></i>Séquences — <span id="lblTrimestreSequences"></span>
+                  <span class="badge badge-primary ms-2" id="badgeSequencesCount">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" id="btnNewSequence">
+                  <i class="fa-solid fa-plus"></i> Nouvelle séquence
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Séquence</th>
+                        <th>Date de début</th>
+                        <th>Date de fin</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodySequences">
+                      <tr><td colspan="4" class="text-center text-muted py-4">Sélectionnez un trimestre</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ===================== TAB : CYCLES & CLASSES ===================== -->
+          <div class="tab-pane fade" id="tab-classes" role="tabpanel">
+
+            <!-- CYCLES -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-layer-group me-2 text-primary"></i>Cycles
+                  <span class="badge badge-primary ms-2" id="badgeCyclesCount">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" id="btnNewCycle">
+                  <i class="fa-solid fa-plus"></i> Nouveau cycle
+                </button>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Ordre</th>
+                        <th>Libellé</th>
+                        <th>Classes</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyCycles">
+                      <tr><td colspan="4" class="text-center text-muted py-4">Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- CLASSES -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chalkboard me-2 text-primary"></i>Classes
+                  <span class="badge badge-primary ms-2" id="badgeClassesCount">0</span>
+                </h2>
+                <div class="d-flex gap-2">
+                  <select id="filterCycle" class="form-select form-select-sm" style="width:auto;">
+                    <option value="">Tous les cycles</option>
+                  </select>
+                  <button class="btn btn-primary btn-sm" id="btnNewClasse">
+                    <i class="fa-solid fa-plus"></i> Nouvelle classe
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Classe</th>
+                        <th>Cycle</th>
+                        <th>Option</th>
+                        <th>Salle</th>
+                        <th>Effectif</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyClasses">
+                      <tr><td colspan="6" class="text-center text-muted py-4">Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div> <!-- /tab-content -->
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===================== MODALES ===================== -->
+
+  <!-- Modal Année scolaire -->
+  <div class="modal fade" id="modalAnnee" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="formAnnee">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAnneeTitle"><i class="fa-solid fa-calendar-plus me-2 text-primary"></i>Nouvelle année scolaire</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="anneeId">
+          <div class="mb-3">
+            <label class="form-label">Libellé *</label>
+            <input type="text" class="form-control" id="anneeLibelle" placeholder="Ex : 2025-2026" required>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de début</label>
+              <input type="date" class="form-control" id="anneeDateDebut">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de fin</label>
+              <input type="date" class="form-control" id="anneeDateFin">
+            </div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="anneeActive">
+            <label class="form-check-label" for="anneeActive">Définir comme année active</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Trimestre -->
+  <div class="modal fade" id="modalTrimestre" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="formTrimestre">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalTrimestreTitle"><i class="fa-solid fa-calendar-week me-2 text-primary"></i>Nouveau trimestre</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="trimestreId">
+          <input type="hidden" id="trimestreAnneeId">
+          <div class="mb-3">
+            <label class="form-label">Libellé *</label>
+            <input type="text" class="form-control" id="trimestreLibelle" placeholder="Ex : Trimestre 1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Numéro *</label>
+            <select class="form-select" id="trimestreNumero" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de début</label>
+              <input type="date" class="form-control" id="trimestreDateDebut">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de fin</label>
+              <input type="date" class="form-control" id="trimestreDateFin">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Séquence -->
+  <div class="modal fade" id="modalSequence" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="formSequence">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalSequenceTitle"><i class="fa-solid fa-list-check me-2 text-primary"></i>Nouvelle séquence</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="sequenceId">
+          <input type="hidden" id="sequenceTrimestreId">
+          <div class="mb-3">
+            <label class="form-label">Libellé *</label>
+            <input type="text" class="form-control" id="sequenceLibelle" placeholder="Ex : SEQ1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Numéro *</label>
+            <select class="form-select" id="sequenceNumero" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de début</label>
+              <input type="date" class="form-control" id="sequenceDateDebut">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date de fin</label>
+              <input type="date" class="form-control" id="sequenceDateFin">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Cycle -->
+  <div class="modal fade" id="modalCycle" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="formCycle">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalCycleTitle"><i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouveau cycle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="cycleId">
+          <div class="mb-3">
+            <label class="form-label">Libellé *</label>
+            <input type="text" class="form-control" id="cycleLibelle" placeholder="Ex : Collège" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Ordre *</label>
+            <input type="number" class="form-control" id="cycleOrdre" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <input type="text" class="form-control" id="cycleDescription" placeholder="Description optionnelle">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Classe -->
+  <div class="modal fade" id="modalClasse" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <form class="modal-content" id="formClasse">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalClasseTitle"><i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Nouvelle classe</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="classeId">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Libellé *</label>
+              <input type="text" class="form-control" id="classeLibelle" placeholder="Ex : 6ème A" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Cycle *</label>
+              <select class="form-select" id="classeCycle" required></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Option / Spécialité</label>
+              <input type="text" class="form-control" id="classeOption" placeholder="Ex : Espagnol I">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Salle</label>
+              <input type="text" class="form-control" id="classeSalle" placeholder="Ex : Salle 101">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Effectif prévisionnel</label>
+              <input type="number" class="form-control" id="classeEffectif" min="0" value="0">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Confirmation suppression -->
+  <div class="modal fade" id="modalConfirm" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Supprimer cet élément ?</p>
+          <p class="text-muted mb-0" style="font-size:11.5px;">Cette action est irréversible. Les données associées pourront être impactées.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-danger btn-sm" id="btnConfirmDelete"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="toast" class="toast" role="alert">
+      <div class="toast-header">
+        <strong class="me-auto" id="toastTitle">Information</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <script>
+  /* ============================================================
+     CONFIG.JS — Consomme /api/structure/*
+     ============================================================ */
+  const API = '/api/structure';
+
+  // État global
+  const state = {
+    annees: [],
+    anneeActiveId: null,
+    trimestres: [],
+    trimestreActifId: null,
+    sequences: [],
+    cycles: [],
+    classes: [],
+    filterCycle: ''
+  };
+
+  /* ---------- Helpers ---------- */
+  function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return document.querySelectorAll(sel); }
+
+  async function api(path, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(API + path, opts);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Erreur serveur');
+    }
+    return data.data;
+  }
+
+  function toast(msg, type = 'success') {
+    $('#toastTitle').textContent = type === 'success' ? 'Succès' : 'Erreur';
+    $('#toastBody').textContent = msg;
+    const t = new bootstrap.Toast($('#toast'));
+    t.show();
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('fr-FR');
+  }
+
+  /* ---------- STATS CONTEXTUELLES ---------- */
+  function buildStatCard(icon, color, label, value, change) {
+    return `
+      <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
+          <div class="stat-icon ${color}"><i class="fa-solid ${icon}"></i></div>
+          <div class="stat-label">${label}</div>
+          <div class="stat-value">${value}</div>
+          <div class="stat-change up"><i class="fa-solid fa-circle-info"></i> ${change}</div>
+        </div>
+      </div>`;
+  }
+
+  function updateStatsAnnees() {
+    const row = $('#statsRow');
+    if (!row) return;
+    const anneeActive = state.annees.find(a => a.active);
+    const stats = [
+      buildStatCard('fa-calendar-days', 'primary', 'Années scolaires', state.annees.length, anneeActive ? `Active : ${anneeActive.libelle}` : 'Aucune année active'),
+      buildStatCard('fa-calendar-week', 'info', 'Trimestres', state.trimestres.length, state.anneeActiveId ? ($('#lblAnneeTrimestres').textContent || '—') : 'Sélectionnez une année'),
+      buildStatCard('fa-list-check', 'success', 'Séquences', state.sequences.length, state.trimestreActifId ? ($('#lblTrimestreSequences').textContent || '—') : 'Sélectionnez un trimestre'),
+    ];
+    row.innerHTML = stats.join('');
+  }
+
+  function updateStatsClasses() {
+    const row = $('#statsRow');
+    if (!row) return;
+    const totalEffectif = state.classes.reduce((sum, c) => sum + (c.effectif || 0), 0);
+    const moyenne = state.classes.length ? Math.round(totalEffectif / state.classes.length) : 0;
+    const stats = [
+      buildStatCard('fa-layer-group', 'primary', 'Cycles', state.cycles.length, 'Collège, Lycée…'),
+      buildStatCard('fa-chalkboard', 'success', 'Classes', state.classes.length, 'Toutes cycles confondus'),
+      buildStatCard('fa-users', 'info', 'Effectif total', totalEffectif, `${moyenne} élèves / classe en moyenne`),
+    ];
+    row.innerHTML = stats.join('');
+  }
+
+  function updateStatsForActiveTab() {
+    const activeTab = document.querySelector('#configTabs .nav-link.active');
+    if (activeTab && activeTab.id === 'navtab-classes') {
+      updateStatsClasses();
+    } else {
+      updateStatsAnnees();
+    }
+  }
+
+  $$('#configTabs button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', updateStatsForActiveTab);
+  });
+
+  /* ---------- ANNÉES SCOLAIRES ---------- */
+  async function loadAnnees() {
+    try {
+      state.annees = await api('/annees-scolaires');
+      renderAnnees();
+      updateStatsForActiveTab();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderAnnees() {
+    const tbody = $('#tbodyAnnees');
+    $('#badgeAnneesCount').textContent = state.annees.length;
+    if (!state.annees.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Aucune année scolaire</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.annees.map(a => `
+      <tr>
+        <td><strong>${a.libelle}</strong></td>
+        <td>
+          ${a.active
+            ? '<span class="badge badge-success">Active</span>'
+            : `<button class="btn btn-sm btn-outline-primary" onclick="activerAnnee(${a.id})">Activer</button>`}
+        </td>
+        <td>${a.nombre_trimestres || 0} trimestre(s)</td>
+        <td class="text-muted">${fmtDate(a.date_debut)}</td>
+        <td class="text-end">
+          <button class="btn btn-icon btn-sm btn-light" onclick="voirTrimestres(${a.id}, '${a.libelle}')" title="Trimestres">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light" onclick="editAnnee(${a.id})" title="Modifier">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light text-danger" onclick="confirmDelete('annee', ${a.id})" title="Supprimer">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function activerAnnee(id) {
+    try {
+      await api(`/annees-scolaires/${id}/activer`, 'POST');
+      toast('Année activée');
+      loadAnnees();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function openModalAnnee(data = null) {
+    $('#modalAnneeTitle').innerHTML = data
+      ? '<i class="fa-solid fa-calendar-days me-2 text-primary"></i>Modifier l\'année'
+      : '<i class="fa-solid fa-calendar-plus me-2 text-primary"></i>Nouvelle année scolaire';
+    $('#anneeId').value = data?.id || '';
+    $('#anneeLibelle').value = data?.libelle || '';
+    $('#anneeDateDebut').value = data?.date_debut || '';
+    $('#anneeDateFin').value = data?.date_fin || '';
+    $('#anneeActive').checked = !!data?.active;
+    new bootstrap.Modal($('#modalAnnee')).show();
+  }
+
+  function editAnnee(id) {
+    const a = state.annees.find(x => x.id === id);
+    if (a) openModalAnnee(a);
+  }
+
+  $('#formAnnee').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#anneeId').value;
+    const payload = {
+      libelle: $('#anneeLibelle').value.trim(),
+      date_debut: $('#anneeDateDebut').value || null,
+      date_fin: $('#anneeDateFin').value || null,
+      active: $('#anneeActive').checked
+    };
+    try {
+      if (id) {
+        await api(`/annees-scolaires/${id}`, 'PUT', payload);
+        toast('Année mise à jour');
+      } else {
+        await api('/annees-scolaires', 'POST', payload);
+        toast('Année créée');
+      }
+      bootstrap.Modal.getInstance($('#modalAnnee')).hide();
+      loadAnnees();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  /* ---------- TRIMESTRES ---------- */
+  async function voirTrimestres(anneeId, libelle) {
+    state.anneeActiveId = anneeId;
+    $('#lblAnneeTrimestres').textContent = libelle;
+    $('#cardTrimestres').style.display = '';
+    $('#cardSequences').style.display = 'none';
+    try {
+      state.trimestres = await api(`/annees-scolaires/${anneeId}/trimestres`);
+      renderTrimestres();
+      updateStatsForActiveTab();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderTrimestres() {
+    const tbody = $('#tbodyTrimestres');
+    $('#badgeTrimestresCount').textContent = state.trimestres.length;
+    if (!state.trimestres.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Aucun trimestre</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.trimestres.map(t => `
+      <tr>
+        <td><strong>${t.libelle}</strong></td>
+        <td>${fmtDate(t.date_debut)}</td>
+        <td>${fmtDate(t.date_fin)}</td>
+        <td>${t.nombre_sequences || 0} séquence(s)</td>
+        <td class="text-end">
+          <button class="btn btn-icon btn-sm btn-light" onclick="voirSequences(${t.id}, '${t.libelle}')" title="Séquences">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light" onclick="editTrimestre(${t.id})" title="Modifier">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light text-danger" onclick="confirmDelete('trimestre', ${t.id})" title="Supprimer">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openModalTrimestre(data = null) {
+    if (!state.anneeActiveId) { toast('Sélectionnez une année', 'error'); return; }
+    $('#modalTrimestreTitle').innerHTML = data
+      ? '<i class="fa-solid fa-calendar-week me-2 text-primary"></i>Modifier le trimestre'
+      : '<i class="fa-solid fa-calendar-week me-2 text-primary"></i>Nouveau trimestre';
+    $('#trimestreId').value = data?.id || '';
+    $('#trimestreAnneeId').value = state.anneeActiveId;
+    $('#trimestreLibelle').value = data?.libelle || '';
+    $('#trimestreNumero').value = data?.numero || 1;
+    $('#trimestreDateDebut').value = data?.date_debut || '';
+    $('#trimestreDateFin').value = data?.date_fin || '';
+    new bootstrap.Modal($('#modalTrimestre')).show();
+  }
+
+  function editTrimestre(id) {
+    const t = state.trimestres.find(x => x.id === id);
+    if (t) openModalTrimestre(t);
+  }
+
+  $('#formTrimestre').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#trimestreId').value;
+    const payload = {
+      annee_scolaire_id: parseInt($('#trimestreAnneeId').value),
+      libelle: $('#trimestreLibelle').value.trim(),
+      numero: parseInt($('#trimestreNumero').value),
+      date_debut: $('#trimestreDateDebut').value || null,
+      date_fin: $('#trimestreDateFin').value || null
+    };
+    try {
+      if (id) {
+        await api(`/trimestres/${id}`, 'PUT', payload);
+        toast('Trimestre mis à jour');
+      } else {
+        await api('/trimestres', 'POST', payload);
+        toast('Trimestre créé');
+      }
+      bootstrap.Modal.getInstance($('#modalTrimestre')).hide();
+      voirTrimestres(state.anneeActiveId, $('#lblAnneeTrimestres').textContent);
+      loadAnnees();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  /* ---------- SÉQUENCES ---------- */
+  async function voirSequences(trimestreId, libelle) {
+    state.trimestreActifId = trimestreId;
+    $('#lblTrimestreSequences').textContent = libelle;
+    $('#cardSequences').style.display = '';
+    try {
+      state.sequences = await api(`/trimestres/${trimestreId}/sequences`);
+      renderSequences();
+      updateStatsForActiveTab();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderSequences() {
+    const tbody = $('#tbodySequences');
+    $('#badgeSequencesCount').textContent = state.sequences.length;
+    if (!state.sequences.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Aucune séquence</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.sequences.map(s => `
+      <tr>
+        <td><strong>${s.libelle}</strong></td>
+        <td>${fmtDate(s.date_debut)}</td>
+        <td>${fmtDate(s.date_fin)}</td>
+        <td class="text-end">
+          <button class="btn btn-icon btn-sm btn-light" onclick="editSequence(${s.id})" title="Modifier">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light text-danger" onclick="confirmDelete('sequence', ${s.id})" title="Supprimer">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openModalSequence(data = null) {
+    if (!state.trimestreActifId) { toast('Sélectionnez un trimestre', 'error'); return; }
+    $('#modalSequenceTitle').innerHTML = data
+      ? '<i class="fa-solid fa-list-check me-2 text-primary"></i>Modifier la séquence'
+      : '<i class="fa-solid fa-list-check me-2 text-primary"></i>Nouvelle séquence';
+    $('#sequenceId').value = data?.id || '';
+    $('#sequenceTrimestreId').value = state.trimestreActifId;
+    $('#sequenceLibelle').value = data?.libelle || '';
+    $('#sequenceNumero').value = data?.numero || 1;
+    $('#sequenceDateDebut').value = data?.date_debut || '';
+    $('#sequenceDateFin').value = data?.date_fin || '';
+    new bootstrap.Modal($('#modalSequence')).show();
+  }
+
+  function editSequence(id) {
+    const s = state.sequences.find(x => x.id === id);
+    if (s) openModalSequence(s);
+  }
+
+  $('#formSequence').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#sequenceId').value;
+    const payload = {
+      trimestre_id: parseInt($('#sequenceTrimestreId').value),
+      libelle: $('#sequenceLibelle').value.trim(),
+      numero: parseInt($('#sequenceNumero').value),
+      date_debut: $('#sequenceDateDebut').value || null,
+      date_fin: $('#sequenceDateFin').value || null
+    };
+    try {
+      if (id) {
+        await api(`/sequences/${id}`, 'PUT', payload);
+        toast('Séquence mise à jour');
+      } else {
+        await api('/sequences', 'POST', payload);
+        toast('Séquence créée');
+      }
+      bootstrap.Modal.getInstance($('#modalSequence')).hide();
+      voirSequences(state.trimestreActifId, $('#lblTrimestreSequences').textContent);
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  /* ---------- CYCLES ---------- */
+  async function loadCycles() {
+    try {
+      state.cycles = await api('/cycles');
+      renderCycles();
+      renderCycleFilter();
+      renderCycleSelect();
+      updateStatsForActiveTab();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderCycles() {
+    const tbody = $('#tbodyCycles');
+    $('#badgeCyclesCount').textContent = state.cycles.length;
+    if (!state.cycles.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Aucun cycle</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.cycles.map(c => `
+      <tr>
+        <td>${c.ordre}</td>
+        <td><strong>${c.libelle}</strong></td>
+        <td>${c.nombre_classes || 0} classe(s)</td>
+        <td class="text-end">
+          <button class="btn btn-icon btn-sm btn-light" onclick="editCycle(${c.id})" title="Modifier">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light text-danger" onclick="confirmDelete('cycle', ${c.id})" title="Supprimer">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function renderCycleFilter() {
+    const sel = $('#filterCycle');
+    sel.innerHTML = '<option value="">Tous les cycles</option>' +
+      state.cycles.map(c => `<option value="${c.id}">${c.libelle}</option>`).join('');
+  }
+
+  function renderCycleSelect() {
+    const sel = $('#classeCycle');
+    sel.innerHTML = '<option value="">-- Choisir --</option>' +
+      state.cycles.map(c => `<option value="${c.id}">${c.libelle}</option>`).join('');
+  }
+
+  function openModalCycle(data = null) {
+    $('#modalCycleTitle').innerHTML = data
+      ? '<i class="fa-solid fa-layer-group me-2 text-primary"></i>Modifier le cycle'
+      : '<i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouveau cycle';
+    $('#cycleId').value = data?.id || '';
+    $('#cycleLibelle').value = data?.libelle || '';
+    $('#cycleOrdre').value = data?.ordre || '';
+    $('#cycleDescription').value = data?.cycle || '';
+    new bootstrap.Modal($('#modalCycle')).show();
+  }
+
+  function editCycle(id) {
+    const c = state.cycles.find(x => x.id === id);
+    if (c) openModalCycle(c);
+  }
+
+  $('#formCycle').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#cycleId').value;
+    const payload = {
+      libelle: $('#cycleLibelle').value.trim(),
+      ordre: parseInt($('#cycleOrdre').value),
+      cycle: $('#cycleDescription').value.trim() || null
+    };
+    try {
+      if (id) {
+        await api(`/cycles/${id}`, 'PUT', payload);
+        toast('Cycle mis à jour');
+      } else {
+        await api('/cycles', 'POST', payload);
+        toast('Cycle créé');
+      }
+      bootstrap.Modal.getInstance($('#modalCycle')).hide();
+      loadCycles();
+      loadClasses();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  /* ---------- CLASSES ---------- */
+  async function loadClasses() {
+    try {
+      state.classes = await api('/classes');
+      renderClasses();
+      updateStatsForActiveTab();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderClasses() {
+    const tbody = $('#tbodyClasses');
+    let list = state.classes;
+    if (state.filterCycle) {
+      list = list.filter(c => c.cycle_id == state.filterCycle);
+    }
+    $('#badgeClassesCount').textContent = state.classes.length;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aucune classe</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(c => `
+      <tr>
+        <td><strong>${c.libelle}</strong></td>
+        <td>${c.cycle_libelle || '—'}</td>
+        <td>${c.option || '—'}</td>
+        <td>${c.salle || '—'}</td>
+        <td>${c.effectif || 0}</td>
+        <td class="text-end">
+          <button class="btn btn-icon btn-sm btn-light" onclick="editClasse(${c.id})" title="Modifier">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-icon btn-sm btn-light text-danger" onclick="confirmDelete('classe', ${c.id})" title="Supprimer">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  $('#filterCycle').addEventListener('change', (e) => {
+    state.filterCycle = e.target.value;
+    renderClasses();
+  });
+
+  function openModalClasse(data = null) {
+    if (!state.cycles.length) { toast('Créez d\'abord un cycle', 'error'); return; }
+    $('#modalClasseTitle').innerHTML = data
+      ? '<i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Modifier la classe'
+      : '<i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Nouvelle classe';
+    $('#classeId').value = data?.id || '';
+    $('#classeLibelle').value = data?.libelle || '';
+    $('#classeCycle').value = data?.cycle_id || '';
+    $('#classeOption').value = data?.option || '';
+    $('#classeSalle').value = data?.salle || '';
+    $('#classeEffectif').value = data?.effectif || 0;
+    new bootstrap.Modal($('#modalClasse')).show();
+  }
+
+  function editClasse(id) {
+    const c = state.classes.find(x => x.id === id);
+    if (c) openModalClasse(c);
+  }
+
+  $('#formClasse').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#classeId').value;
+    const payload = {
+      libelle: $('#classeLibelle').value.trim(),
+      cycle_id: parseInt($('#classeCycle').value),
+      option: $('#classeOption').value.trim() || null,
+      salle: $('#classeSalle').value.trim() || null,
+      effectif: parseInt($('#classeEffectif').value) || 0
+    };
+    try {
+      if (id) {
+        await api(`/classes/${id}`, 'PUT', payload);
+        toast('Classe mise à jour');
+      } else {
+        await api('/classes', 'POST', payload);
+        toast('Classe créée');
+      }
+      bootstrap.Modal.getInstance($('#modalClasse')).hide();
+      loadClasses();
+      loadCycles();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  /* ---------- SUPPRESSION GÉNÉRIQUE ---------- */
+  let pendingDelete = null;
+
+  function confirmDelete(type, id) {
+    pendingDelete = { type, id };
+    new bootstrap.Modal($('#modalConfirm')).show();
+  }
+
+  $('#btnConfirmDelete').addEventListener('click', async () => {
+    if (!pendingDelete) return;
+    const { type, id } = pendingDelete;
+    const routes = {
+      annee: `/annees-scolaires/${id}`,
+      trimestre: `/trimestres/${id}`,
+      sequence: `/sequences/${id}`,
+      cycle: `/cycles/${id}`,
+      classe: `/classes/${id}`
+    };
+    try {
+      await api(routes[type], 'DELETE');
+      toast('Élément supprimé');
+      bootstrap.Modal.getInstance($('#modalConfirm')).hide();
+      // Recharger la bonne liste
+      if (type === 'annee') loadAnnees();
+      if (type === 'trimestre') voirTrimestres(state.anneeActiveId, $('#lblAnneeTrimestres').textContent);
+      if (type === 'sequence') voirSequences(state.trimestreActifId, $('#lblTrimestreSequences').textContent);
+      if (type === 'cycle') { loadCycles(); loadClasses(); }
+      if (type === 'classe') loadClasses();
+    } catch (e) { toast(e.message, 'error'); }
+    pendingDelete = null;
+  });
+
+  /* ---------- BINDINGS BOUTONS ---------- */
+  $('#btnNewAnnee').addEventListener('click', () => openModalAnnee());
+  $('#btnNewTrimestre').addEventListener('click', () => openModalTrimestre());
+  $('#btnNewSequence').addEventListener('click', () => openModalSequence());
+  $('#btnNewCycle').addEventListener('click', () => openModalCycle());
+  $('#btnNewClasse').addEventListener('click', () => openModalClasse());
+
+  /* ---------- INIT ---------- */
+  document.addEventListener('DOMContentLoaded', () => {
+    updateStatsAnnees();
+    loadAnnees();
+    loadCycles();
+    loadClasses();
+  });
+  </script>
+
+</body>
+</html>

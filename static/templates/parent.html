@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parents — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body data-page="parents">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Parents</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Parents</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Gérez les parents d'élèves et consultez leurs coordonnées.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button" id="btnExportCsv">
+              <i class="fa-solid fa-file-export"></i> Exporter
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+            <button class="btn btn-primary btn-sm" type="button" id="btnNouveauParent" data-bs-toggle="modal" data-bs-target="#modalParent">
+              <i class="fa-solid fa-plus"></i> Nouveau parent
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-label">Parents</div>
+              <div class="stat-value" id="statTotal">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTotalChange">Effectif total</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-envelope"></i></div>
+              <div class="stat-label">Email renseigné</div>
+              <div class="stat-value" id="statAvecEmail">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statAvecEmailChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon info"><i class="fa-solid fa-phone"></i></div>
+              <div class="stat-label">Téléphone renseigné</div>
+              <div class="stat-value" id="statAvecTelephone">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statAvecTelephoneChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon warning"><i class="fa-solid fa-briefcase"></i></div>
+              <div class="stat-label">Profession la plus représentée</div>
+              <div class="stat-value" id="statTopProfession" style="font-size:16px;">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTopProfessionChange">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition par profession
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartProfessions" height="230"></canvas>
+                <div id="chartProfessionsEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune donnée disponible</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Professions les plus représentées
+                </h2>
+                <span class="badge badge-primary">Top 8</span>
+              </div>
+              <div class="card-body">
+                <canvas id="chartTopProfessions" height="230"></canvas>
+                <div id="chartTopProfessionsEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune profession renseignée</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-envelope-circle-check me-2 text-primary"></i>Coordonnées : email
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-center g-4">
+                  <div class="col-5">
+                    <canvas id="chartEmail" height="150"></canvas>
+                  </div>
+                  <div class="col-7">
+                    <div class="d-flex flex-column gap-3">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-success);display:inline-block;"></span>
+                          <span>Email renseigné</span>
+                        </div>
+                        <strong id="legendEmailOui">—</strong>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-border);display:inline-block;"></span>
+                          <span>Email non renseigné</span>
+                        </div>
+                        <strong id="legendEmailNon">—</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-phone-volume me-2 text-primary"></i>Coordonnées : téléphone
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-center g-4">
+                  <div class="col-5">
+                    <canvas id="chartTelephone" height="150"></canvas>
+                  </div>
+                  <div class="col-7">
+                    <div class="d-flex flex-column gap-3">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-success);display:inline-block;"></span>
+                          <span>Téléphone renseigné</span>
+                        </div>
+                        <strong id="legendTelOui">—</strong>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-border);display:inline-block;"></span>
+                          <span>Téléphone non renseigné</span>
+                        </div>
+                        <strong id="legendTelNon">—</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRES
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label">Rechercher</label>
+                <input type="search" class="form-control form-control-sm" id="filterSearch" placeholder="Nom, prénom, email…">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Profession</label>
+                <select class="form-select form-select-sm" id="filterProfession">
+                  <option value="">Toutes les professions</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Coordonnées</label>
+                <select class="form-select form-select-sm" id="filterStatut">
+                  <option value="">Toutes</option>
+                  <option value="email">Avec email</option>
+                  <option value="telephone">Avec téléphone</option>
+                  <option value="incomplet">Coordonnées incomplètes</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-light btn-sm w-100" id="btnResetFilters"><i class="fa-solid fa-rotate-left"></i> Réinitialiser</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             TABLEAU PARENTS
+        ═══════════════════════════════════════════════ -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <i class="fa-solid fa-users me-2 text-primary"></i>Liste des parents
+              <span class="badge badge-primary ms-2" id="badgeCount">0</span>
+            </h2>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Parent</th>
+                    <th>Contact</th>
+                    <th>Adresse</th>
+                    <th>Profession</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-5">
+                      <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+                      Chargement des parents…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="footerCount">—</small>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouveau / Modifier parent
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalParent" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalParentTitle"><i class="fa-solid fa-user me-2 text-primary"></i>Nouveau parent</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formParent" novalidate>
+            <input type="hidden" id="fParentId" value="">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nom *</label>
+                <input type="text" class="form-control" id="fNom" placeholder="Ex : Fouda" required>
+                <div class="invalid-feedback">Le nom est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Prénom *</label>
+                <input type="text" class="form-control" id="fPrenom" placeholder="Ex : Marie" required>
+                <div class="invalid-feedback">Le prénom est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="fEmail" placeholder="Ex : marie.fouda@mail.cm">
+                <div class="invalid-feedback">Veuillez saisir un email valide.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Téléphone</label>
+                <input type="tel" class="form-control" id="fTelephone" placeholder="Ex : 6 90 00 00 00">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Profession</label>
+                <input type="text" class="form-control" id="fProfession" placeholder="Ex : Commerçant(e), Enseignant(e)…">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Adresse</label>
+                <input type="text" class="form-control" id="fAdresse" placeholder="Ex : Akwa, Douala">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnSaveParent" type="button">
+            <i class="fa-solid fa-check"></i> <span id="btnSaveParentLabel">Créer le parent</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Détail parent
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalDetailParent" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-circle-user me-2 text-primary"></i>Fiche parent</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="eleve-avatar-placeholder" style="width:52px;height:52px;font-size:16px;" id="detailAvatar">--</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;" id="detailNomComplet">—</div>
+              <div class="text-muted" id="detailProfession">—</div>
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <div id="detailEmail">—</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone</label>
+              <div id="detailTelephone">—</div>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Adresse</label>
+              <div id="detailAdresse">—</div>
+            </div>
+          </div>
+          <hr class="divider">
+          <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-child-reaching me-1 text-primary"></i>Élève(s) rattaché(s)</h6>
+          <div id="detailElevesLoading" class="text-muted text-center py-3" style="display:none;">
+            <i class="fa-solid fa-spinner fa-spin me-1"></i> Chargement…
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="detailElevesTable">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Prénom</th>
+                  <th>Classe</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Confirmation suppression
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Supprimer le parent <strong id="deleteParentNom">—</strong> ?</p>
+          <p class="text-muted mb-0" style="font-size:11.5px;">Cette action est irréversible. La suppression est impossible si des élèves sont encore rattachés à ce parent.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btnConfirmDelete"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page : logique parents -->
+  <script>
+    (function () {
+      "use strict";
+
+      const API_BASE = "/api/parents";
+
+      /* ─────────────────────────────────────────
+         ÉTAT GLOBAL
+      ───────────────────────────────────────── */
+      let parents = [];
+      let chartProfessions = null;
+      let chartTopProfessions = null;
+      let chartEmail = null;
+      let chartTelephone = null;
+      let deleteTargetId = null;
+
+      /* ─────────────────────────────────────────
+         HELPERS
+      ───────────────────────────────────────── */
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function initials(nom, prenom) {
+        const a = (prenom || "").trim().charAt(0).toUpperCase();
+        const b = (nom || "").trim().charAt(0).toUpperCase();
+        return (a + b) || "?";
+      }
+
+      function fullName(p) {
+        return `${p.prenom || ""} ${p.nom || ""}`.trim();
+      }
+
+      function showToast(message, type) {
+        const toastEl = document.getElementById("appToast");
+        const icon = document.getElementById("toastIcon");
+        const title = document.getElementById("toastTitle");
+        const body = document.getElementById("toastBody");
+        const isError = type === "error";
+        icon.className = isError
+          ? "fa-solid fa-circle-xmark text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        title.textContent = isError ? "Erreur" : "Succès";
+        body.textContent = message;
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
+        toast.show();
+      }
+
+      function escapeHtml(str) {
+        return (str || "").toString()
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      async function apiCall(path, options) {
+        const res = await fetch(`${API_BASE}${path}`, Object.assign({
+          headers: { "Content-Type": "application/json" }
+        }, options));
+        let json;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.success === false) {
+          throw new Error(json.error || `Erreur ${res.status}`);
+        }
+        return json;
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT DES DONNÉES
+      ───────────────────────────────────────── */
+      async function loadAll() {
+        renderLoadingTable();
+        try {
+          const res = await apiCall("");
+          parents = res.data || [];
+          populateProfessionFilter();
+          renderStats();
+          renderTable(); // 👈 données affichées même si les graphiques plantent
+
+          try {
+            renderCharts();
+          } catch (chartErr) {
+            console.error("Erreur graphiques:", chartErr);
+          }
+        } catch (err) {
+          showToast(err.message || "Impossible de charger les données", "error");
+          document.getElementById("tableBody").innerHTML = `
+            <tr><td colspan="5" class="text-center text-muted py-5">
+              <i class="fa-solid fa-triangle-exclamation fa-lg mb-2 d-block"></i>
+              Impossible de charger les parents.
+            </td></tr>`;
+        }
+      }
+
+      function populateProfessionFilter() {
+        const select = document.getElementById("filterProfession");
+        const current = select.value;
+        const professions = Array.from(new Set(
+          parents.map((p) => (p.profession || "").trim()).filter(Boolean)
+        )).sort();
+        select.innerHTML = '<option value="">Toutes les professions</option>' +
+          professions.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+        select.value = current;
+      }
+
+      /* ─────────────────────────────────────────
+         STATS
+      ───────────────────────────────────────── */
+      function renderStats() {
+        const total = parents.length;
+        const nbEmail = parents.filter((p) => (p.email || "").trim()).length;
+        const nbTelephone = parents.filter((p) => (p.telephone || "").trim()).length;
+
+        document.getElementById("statTotal").textContent = total;
+        document.getElementById("statTotalChange").textContent = total > 0 ? "Effectif total" : "Aucun parent";
+
+        document.getElementById("statAvecEmail").textContent = nbEmail;
+        document.getElementById("statAvecEmailChange").textContent =
+          total > 0 ? `${Math.round((nbEmail / total) * 100)}% des parents` : "—";
+
+        document.getElementById("statAvecTelephone").textContent = nbTelephone;
+        document.getElementById("statAvecTelephoneChange").textContent =
+          total > 0 ? `${Math.round((nbTelephone / total) * 100)}% des parents` : "—";
+
+        const professionCounts = {};
+        parents.forEach((p) => {
+          const prof = (p.profession || "").trim();
+          if (!prof) return;
+          professionCounts[prof] = (professionCounts[prof] || 0) + 1;
+        });
+        const sortedProfessions = Object.entries(professionCounts).sort((a, b) => b[1] - a[1]);
+        if (sortedProfessions.length > 0) {
+          document.getElementById("statTopProfession").textContent = sortedProfessions[0][0];
+          document.getElementById("statTopProfessionChange").textContent = `${sortedProfessions[0][1]} parent(s)`;
+        } else {
+          document.getElementById("statTopProfession").textContent = "—";
+          document.getElementById("statTopProfessionChange").textContent = "—";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES (Chart.js)
+      ───────────────────────────────────────── */
+      const PALETTE = () => [
+        cssVar("--ta-primary"), cssVar("--ta-success"), cssVar("--ta-warning"),
+        cssVar("--ta-info"), cssVar("--ta-danger"), "#8B5CF6", "#F97316", "#0EA5E9"
+      ];
+
+      function renderCharts() {
+        renderChartProfessions();
+        renderChartTopProfessions();
+        renderChartEmail();
+        renderChartTelephone();
+      }
+
+      function getProfessionCounts() {
+        const counts = {};
+        parents.forEach((p) => {
+          const prof = (p.profession || "").trim() || "Non renseignée";
+          counts[prof] = (counts[prof] || 0) + 1;
+        });
+        return counts;
+      }
+
+      function renderChartProfessions() {
+        const ctx = document.getElementById("chartProfessions");
+        const emptyEl = document.getElementById("chartProfessionsEmpty");
+        const counts = getProfessionCounts();
+        const labels = Object.keys(counts);
+        const data = Object.values(counts);
+
+        if (chartProfessions) chartProfessions.destroy();
+
+        if (labels.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartProfessions = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: PALETTE(),
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label}: ${c.raw} parent(s)`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartTopProfessions() {
+        const ctx = document.getElementById("chartTopProfessions");
+        const emptyEl = document.getElementById("chartTopProfessionsEmpty");
+        const counts = getProfessionCounts();
+
+        const sorted = Object.entries(counts)
+          .filter(([label]) => label !== "Non renseignée")
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8);
+
+        if (chartTopProfessions) chartTopProfessions.destroy();
+
+        if (sorted.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartTopProfessions = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: sorted.map(([label]) => label),
+            datasets: [{
+              label: "Parents",
+              data: sorted.map(([, count]) => count),
+              backgroundColor: cssVar("--ta-primary"),
+              borderRadius: 4,
+              maxBarThickness: 26
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.raw} parent(s)`
+                }
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              },
+              y: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+
+      function renderChartEmail() {
+        const ctx = document.getElementById("chartEmail");
+        const total = parents.length;
+        const nbOui = parents.filter((p) => (p.email || "").trim()).length;
+        const nbNon = Math.max(total - nbOui, 0);
+
+        document.getElementById("legendEmailOui").textContent = nbOui;
+        document.getElementById("legendEmailNon").textContent = nbNon;
+
+        if (chartEmail) chartEmail.destroy();
+
+        chartEmail = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Renseigné", "Non renseigné"],
+            datasets: [{
+              data: [nbOui, nbNon],
+              backgroundColor: total > 0
+                ? [cssVar("--ta-success"), cssVar("--ta-border")]
+                : [cssVar("--ta-border"), cssVar("--ta-border")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "68%",
+            plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } }
+          }
+        });
+      }
+
+      function renderChartTelephone() {
+        const ctx = document.getElementById("chartTelephone");
+        const total = parents.length;
+        const nbOui = parents.filter((p) => (p.telephone || "").trim()).length;
+        const nbNon = Math.max(total - nbOui, 0);
+
+        document.getElementById("legendTelOui").textContent = nbOui;
+        document.getElementById("legendTelNon").textContent = nbNon;
+
+        if (chartTelephone) chartTelephone.destroy();
+
+        chartTelephone = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Renseigné", "Non renseigné"],
+            datasets: [{
+              data: [nbOui, nbNon],
+              backgroundColor: total > 0
+                ? [cssVar("--ta-success"), cssVar("--ta-border")]
+                : [cssVar("--ta-border"), cssVar("--ta-border")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "68%",
+            plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } }
+          }
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         TABLEAU
+      ───────────────────────────────────────── */
+      function renderLoadingTable() {
+        document.getElementById("tableBody").innerHTML = `
+          <tr><td colspan="5" class="text-center text-muted py-5">
+            <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+            Chargement des parents…
+          </td></tr>`;
+      }
+
+      function getFilteredParents() {
+        const search = document.getElementById("filterSearch").value.trim().toLowerCase();
+        const profession = document.getElementById("filterProfession").value;
+        const statut = document.getElementById("filterStatut").value;
+
+        return parents.filter((p) => {
+          if (search) {
+            const haystack = `${p.nom || ""} ${p.prenom || ""} ${p.email || ""}`.toLowerCase();
+            if (!haystack.includes(search)) return false;
+          }
+          if (profession && (p.profession || "") !== profession) return false;
+          if (statut) {
+            const hasEmail = !!(p.email || "").trim();
+            const hasTelephone = !!(p.telephone || "").trim();
+            if (statut === "email" && !hasEmail) return false;
+            if (statut === "telephone" && !hasTelephone) return false;
+            if (statut === "incomplet" && (hasEmail && hasTelephone)) return false;
+          }
+          return true;
+        });
+      }
+
+      function renderTable() {
+        const list = getFilteredParents();
+        const tbody = document.getElementById("tableBody");
+        document.getElementById("badgeCount").textContent = parents.length;
+        document.getElementById("footerCount").textContent =
+          `Affichage ${list.length} sur ${parents.length} parent(s)`;
+
+        if (list.length === 0) {
+          tbody.innerHTML = `
+            <tr><td colspan="5" class="text-center text-muted py-5">
+              <i class="fa-solid fa-user-slash fa-lg mb-2 d-block"></i>
+              Aucun parent ne correspond aux critères.
+            </td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = list.map((p) => {
+          return `
+            <tr>
+              <td>
+                <div class="eleve-card">
+                  <div class="eleve-avatar-placeholder">${escapeHtml(initials(p.nom, p.prenom))}</div>
+                  <div>
+                    <div class="eleve-name">${escapeHtml(fullName(p))}</div>
+                    <div class="eleve-matricule">ID #${p.id}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div>${escapeHtml(p.email || "—")}</div>
+                <div class="text-muted" style="font-size:11px;">${escapeHtml(p.telephone || "—")}</div>
+              </td>
+              <td>${escapeHtml(p.adresse || "—")}</td>
+              <td>${p.profession ? `<span class="badge badge-info">${escapeHtml(p.profession)}</span>` : '<span class="text-muted">—</span>'}</td>
+              <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light btn-view" data-id="${p.id}" title="Voir la fiche"><i class="fa-solid fa-eye"></i></button>
+                <button class="btn btn-icon btn-sm btn-light btn-edit" data-id="${p.id}" title="Modifier"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-icon btn-sm btn-light text-danger btn-delete" data-id="${p.id}" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+        }).join("");
+
+        bindRowActions();
+      }
+
+      function bindRowActions() {
+        document.querySelectorAll(".btn-view").forEach((btn) => {
+          btn.addEventListener("click", () => openDetailModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-edit").forEach((btn) => {
+          btn.addEventListener("click", () => openEditModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.addEventListener("click", () => openDeleteModal(Number(btn.dataset.id)));
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         MODAL CRÉATION / ÉDITION
+      ───────────────────────────────────────── */
+      function resetForm() {
+        document.getElementById("formParent").classList.remove("was-validated");
+        document.getElementById("fParentId").value = "";
+        document.getElementById("fNom").value = "";
+        document.getElementById("fPrenom").value = "";
+        document.getElementById("fEmail").value = "";
+        document.getElementById("fTelephone").value = "";
+        document.getElementById("fProfession").value = "";
+        document.getElementById("fAdresse").value = "";
+        document.getElementById("modalParentTitle").innerHTML =
+          '<i class="fa-solid fa-user me-2 text-primary"></i>Nouveau parent';
+        document.getElementById("btnSaveParentLabel").textContent = "Créer le parent";
+      }
+
+      document.getElementById("btnNouveauParent").addEventListener("click", resetForm);
+
+      function openEditModal(id) {
+        const p = parents.find((x) => x.id === id);
+        if (!p) return;
+        resetForm();
+        document.getElementById("fParentId").value = p.id;
+        document.getElementById("fNom").value = p.nom || "";
+        document.getElementById("fPrenom").value = p.prenom || "";
+        document.getElementById("fEmail").value = p.email || "";
+        document.getElementById("fTelephone").value = p.telephone || "";
+        document.getElementById("fProfession").value = p.profession || "";
+        document.getElementById("fAdresse").value = p.adresse || "";
+        document.getElementById("modalParentTitle").innerHTML =
+          '<i class="fa-solid fa-pen me-2 text-primary"></i>Modifier le parent';
+        document.getElementById("btnSaveParentLabel").textContent = "Enregistrer les modifications";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalParent")).show();
+      }
+
+      document.getElementById("btnSaveParent").addEventListener("click", async () => {
+        const form = document.getElementById("formParent");
+        const nom = document.getElementById("fNom").value.trim();
+        const prenom = document.getElementById("fPrenom").value.trim();
+
+        if (!nom || !prenom || !form.checkValidity()) {
+          form.classList.add("was-validated");
+          return;
+        }
+
+        const id = document.getElementById("fParentId").value;
+        const payload = {
+          nom,
+          prenom,
+          email: document.getElementById("fEmail").value.trim(),
+          telephone: document.getElementById("fTelephone").value.trim(),
+          profession: document.getElementById("fProfession").value.trim(),
+          adresse: document.getElementById("fAdresse").value.trim()
+        };
+
+        const btn = document.getElementById("btnSaveParent");
+        btn.disabled = true;
+        try {
+          if (id) {
+            await apiCall(`/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+            showToast("Parent mis à jour avec succès.");
+          } else {
+            await apiCall("", { method: "POST", body: JSON.stringify(payload) });
+            showToast("Parent créé avec succès.");
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalParent")).hide();
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Une erreur est survenue.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         MODAL DÉTAIL
+      ───────────────────────────────────────── */
+      async function openDetailModal(id) {
+        const p = parents.find((x) => x.id === id);
+        if (!p) return;
+
+        document.getElementById("detailAvatar").textContent = initials(p.nom, p.prenom);
+        document.getElementById("detailNomComplet").textContent = fullName(p);
+        document.getElementById("detailProfession").textContent = p.profession || "Profession non renseignée";
+        document.getElementById("detailEmail").textContent = p.email || "—";
+        document.getElementById("detailTelephone").textContent = p.telephone || "—";
+        document.getElementById("detailAdresse").textContent = p.adresse || "—";
+
+        const tbody = document.querySelector("#detailElevesTable tbody");
+        tbody.innerHTML = "";
+        document.getElementById("detailElevesLoading").style.display = "block";
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalDetailParent")).show();
+
+        try {
+          const res = await apiCall(`/${id}`);
+          const full = res.data || {};
+          const eleves = full.eleves || [];
+          tbody.innerHTML = eleves.length > 0
+            ? eleves.map((e) => `
+                <tr>
+                  <td>${escapeHtml(e.nom || "—")}</td>
+                  <td>${escapeHtml(e.prenom || "—")}</td>
+                  <td>${escapeHtml(e.classe || (e.classe && e.classe.libelle) || "—")}</td>
+                </tr>`).join("")
+            : `<tr><td colspan="3" class="text-center text-muted py-3">Aucun élève rattaché</td></tr>`;
+        } catch (err) {
+          tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-3">Impossible de charger les élèves rattachés.</td></tr>`;
+        } finally {
+          document.getElementById("detailElevesLoading").style.display = "none";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         SUPPRESSION
+      ───────────────────────────────────────── */
+      function openDeleteModal(id) {
+        const p = parents.find((x) => x.id === id);
+        if (!p) return;
+        deleteTargetId = id;
+        document.getElementById("deleteParentNom").textContent = fullName(p);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalConfirmSuppression")).show();
+      }
+
+      document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
+        if (!deleteTargetId) return;
+        const btn = document.getElementById("btnConfirmDelete");
+        btn.disabled = true;
+        try {
+          await apiCall(`/${deleteTargetId}`, { method: "DELETE" });
+          showToast("Parent supprimé avec succès.");
+          bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression")).hide();
+          deleteTargetId = null;
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Impossible de supprimer ce parent.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         FILTRES
+      ───────────────────────────────────────── */
+      let searchDebounce = null;
+      document.getElementById("filterSearch").addEventListener("input", () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(renderTable, 200);
+      });
+      document.getElementById("filterProfession").addEventListener("change", renderTable);
+      document.getElementById("filterStatut").addEventListener("change", renderTable);
+      document.getElementById("btnResetFilters").addEventListener("click", () => {
+        document.getElementById("filterSearch").value = "";
+        document.getElementById("filterProfession").value = "";
+        document.getElementById("filterStatut").value = "";
+        renderTable();
+      });
+
+      /* ─────────────────────────────────────────
+         ACTUALISATION / EXPORT
+      ───────────────────────────────────────── */
+      document.getElementById("btnRefresh").addEventListener("click", loadAll);
+
+      document.getElementById("btnExportCsv").addEventListener("click", () => {
+        if (parents.length === 0) {
+          showToast("Aucune donnée à exporter.", "error");
+          return;
+        }
+        const rows = [["Nom", "Prénom", "Email", "Téléphone", "Adresse", "Profession"]];
+        parents.forEach((p) => {
+          rows.push([
+            p.nom || "", p.prenom || "", p.email || "", p.telephone || "",
+            p.adresse || "", p.profession || ""
+          ]);
+        });
+        const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "parents.csv";
+        link.click();
+      });
+
+      /* ─────────────────────────────────────────
+         INIT
+      ───────────────────────────────────────── */
+      function init() {
+        document.getElementById("modalParent").addEventListener("hidden.bs.modal", resetForm);
+        loadAll();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

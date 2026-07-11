@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enseignants — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body data-page="enseignants">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Enseignants</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Enseignants</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Gérez le corps enseignant, leurs affectations et leur charge horaire.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button" id="btnExportCsv">
+              <i class="fa-solid fa-file-export"></i> Exporter
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+            <button class="btn btn-primary btn-sm" type="button" id="btnNouvelEnseignant" data-bs-toggle="modal" data-bs-target="#modalEnseignant">
+              <i class="fa-solid fa-plus"></i> Nouvel enseignant
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-user-tie"></i></div>
+              <div class="stat-label">Enseignants</div>
+              <div class="stat-value" id="statTotal">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTotalChange">Effectif total</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-chalkboard-user"></i></div>
+              <div class="stat-label">Titulaires de classe</div>
+              <div class="stat-value" id="statTitulaires">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTitulairesChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon info"><i class="fa-solid fa-book-open"></i></div>
+              <div class="stat-label">Affectations matière-classe</div>
+              <div class="stat-value" id="statAffectations">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statAffectationsChange">Toutes classes confondues</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon warning"><i class="fa-solid fa-layer-group"></i></div>
+              <div class="stat-label">Grade le plus représenté</div>
+              <div class="stat-value" id="statTopGrade" style="font-size:16px;">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTopGradeChange">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition par grade
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartGrades" height="230"></canvas>
+                <div id="chartGradesEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune donnée disponible</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Charge par enseignant (matières enseignées)
+                </h2>
+                <span class="badge badge-primary">Top 8</span>
+              </div>
+              <div class="card-body">
+                <canvas id="chartCharge" height="230"></canvas>
+                <div id="chartChargeEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune affectation matière-classe enregistrée</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Titulaires vs Non-titulaires
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-center g-4">
+                  <div class="col-md-5">
+                    <canvas id="chartTitulaires" height="180"></canvas>
+                  </div>
+                  <div class="col-md-7">
+                    <div class="d-flex flex-column gap-3">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-success);display:inline-block;"></span>
+                          <span>Titulaires de classe</span>
+                        </div>
+                        <strong id="legendTitulaires">—</strong>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-border);display:inline-block;"></span>
+                          <span>Sans classe titularisée</span>
+                        </div>
+                        <strong id="legendNonTitulaires">—</strong>
+                      </div>
+                      <hr class="divider">
+                      <p class="text-muted mb-0" style="font-size:11.5px;">
+                        Un enseignant « titulaire » est responsable administratif d'une classe pour l'année scolaire active.
+                        Il peut également enseigner une ou plusieurs matières dans d'autres classes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRES
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label">Rechercher</label>
+                <input type="search" class="form-control form-control-sm" id="filterSearch" placeholder="Nom, prénom, email…">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Grade</label>
+                <select class="form-select form-select-sm" id="filterGrade">
+                  <option value="">Tous les grades</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Statut</label>
+                <select class="form-select form-select-sm" id="filterStatut">
+                  <option value="">Tous les statuts</option>
+                  <option value="titulaire">Titulaire de classe</option>
+                  <option value="non-titulaire">Sans classe titularisée</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-light btn-sm w-100" id="btnResetFilters"><i class="fa-solid fa-rotate-left"></i> Réinitialiser</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             TABLEAU ENSEIGNANTS
+        ═══════════════════════════════════════════════ -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <i class="fa-solid fa-user-tie me-2 text-primary"></i>Liste des enseignants
+              <span class="badge badge-primary ms-2" id="badgeCount">0</span>
+            </h2>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Enseignant</th>
+                    <th>Contact</th>
+                    <th>Grade</th>
+                    <th>Statut</th>
+                    <th>Classe(s) titularisée(s)</th>
+                    <th>Matières enseignées</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                      <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+                      Chargement des enseignants…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="footerCount">—</small>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvel / Modifier enseignant
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalEnseignant" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEnseignantTitle"><i class="fa-solid fa-user-tie me-2 text-primary"></i>Nouvel enseignant</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formEnseignant" novalidate>
+            <input type="hidden" id="fEnseignantId" value="">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nom *</label>
+                <input type="text" class="form-control" id="fNom" placeholder="Ex : Fouda" required>
+                <div class="invalid-feedback">Le nom est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Prénom *</label>
+                <input type="text" class="form-control" id="fPrenom" placeholder="Ex : Marie" required>
+                <div class="invalid-feedback">Le prénom est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Email *</label>
+                <input type="email" class="form-control" id="fEmail" placeholder="Ex : marie.fouda@ecole.cm" required>
+                <div class="invalid-feedback">Un email valide est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Téléphone</label>
+                <input type="tel" class="form-control" id="fTelephone" placeholder="Ex : 6 90 00 00 00">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Grade</label>
+                <input type="text" class="form-control" id="fGrade" list="gradesSuggestions" placeholder="Ex : Certifié, PLEG, Vacataire…">
+                <datalist id="gradesSuggestions">
+                  <option value="Certifié">
+                  <option value="PLEG">
+                  <option value="PLET">
+                  <option value="Instituteur">
+                  <option value="Contractuel">
+                  <option value="Vacataire">
+                </datalist>
+              </div>
+              <div class="col-md-6 d-flex align-items-center">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="fEstTitulaire">
+                  <label class="form-check-label" for="fEstTitulaire">Peut être titulaire de classe</label>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnSaveEnseignant" type="button">
+            <i class="fa-solid fa-check"></i> <span id="btnSaveEnseignantLabel">Créer l'enseignant</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Détail enseignant
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalDetailEnseignant" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-circle-user me-2 text-primary"></i>Fiche enseignant</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="eleve-avatar-placeholder" style="width:52px;height:52px;font-size:16px;" id="detailAvatar">--</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;" id="detailNomComplet">—</div>
+              <div class="text-muted" id="detailGrade">—</div>
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <div id="detailEmail">—</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone</label>
+              <div id="detailTelephone">—</div>
+            </div>
+          </div>
+          <hr class="divider">
+          <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-chalkboard-user me-1 text-primary"></i>Classe(s) titularisée(s)</h6>
+          <div id="detailClasses" class="mb-3">—</div>
+          <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-book-open me-1 text-primary"></i>Matières enseignées</h6>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="detailMatieresTable">
+              <thead>
+                <tr>
+                  <th>Matière</th>
+                  <th>Classe</th>
+                  <th>Coefficient</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Confirmation suppression
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Supprimer l'enseignant <strong id="deleteEnseignantNom">—</strong> ?</p>
+          <p class="text-muted mb-0" style="font-size:11.5px;">Cette action est irréversible. Les affectations liées (classes, matières) pourront être impactées.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btnConfirmDelete"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <!-- Après -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page : logique enseignants -->
+  <script>
+    (function () {
+      "use strict";
+
+      const API_BASE = "/api/pedagogie";
+
+      /* ─────────────────────────────────────────
+         ÉTAT GLOBAL
+      ───────────────────────────────────────── */
+      let enseignants = [];
+      let matieresClasse = [];
+      let titulairesClasse = [];
+      let matieresByEnseignant = {};   // id -> [{matiere, classe, coefficient}]
+      let titulairesByEnseignant = {}; // id -> [{classe, annee}]
+      let chartGrades = null;
+      let chartCharge = null;
+      let chartTitulaires = null;
+      let deleteTargetId = null;
+
+      /* ─────────────────────────────────────────
+         HELPERS
+      ───────────────────────────────────────── */
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function initials(nom, prenom) {
+        const a = (prenom || "").trim().charAt(0).toUpperCase();
+        const b = (nom || "").trim().charAt(0).toUpperCase();
+        return (a + b) || "?";
+      }
+
+      function fullName(e) {
+        return `${e.prenom || ""} ${e.nom || ""}`.trim();
+      }
+
+      function showToast(message, type) {
+        const toastEl = document.getElementById("appToast");
+        const icon = document.getElementById("toastIcon");
+        const title = document.getElementById("toastTitle");
+        const body = document.getElementById("toastBody");
+        const isError = type === "error";
+        icon.className = isError
+          ? "fa-solid fa-circle-xmark text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        title.textContent = isError ? "Erreur" : "Succès";
+        body.textContent = message;
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
+        toast.show();
+      }
+
+      function escapeHtml(str) {
+        return (str || "").toString()
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      async function apiCall(path, options) {
+        const res = await fetch(`${API_BASE}${path}`, Object.assign({
+          headers: { "Content-Type": "application/json" }
+        }, options));
+        let json;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.success === false) {
+          throw new Error(json.error || `Erreur ${res.status}`);
+        }
+        return json;
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT DES DONNÉES
+      ───────────────────────────────────────── */
+      async function loadAll() {
+        renderLoadingTable();
+        try {
+          const [ensRes, mcRes, tcRes] = await Promise.all([
+            apiCall("/enseignants"),
+            apiCall("/matieres-classe"),
+            apiCall("/titulaires-classe")
+          ]);
+          enseignants = ensRes.data || [];
+          matieresClasse = mcRes.data || [];
+          titulairesClasse = tcRes.data || [];
+          buildLookups();
+          populateGradeFilter();
+          renderStats();
+          renderTable(); // 👈 données affichées même si les graphiques plantent
+
+          try {
+            renderCharts();
+          } catch (chartErr) {
+            console.error("Erreur graphiques:", chartErr);
+          }
+        } catch (err) {
+          showToast(err.message || "Impossible de charger les données", "error");
+          document.getElementById("tableBody").innerHTML = `...`;
+        }
+      }
+
+      function buildLookups() {
+        matieresByEnseignant = {};
+        matieresClasse.forEach((mc) => {
+          const id = mc.enseignant_id;
+          if (!matieresByEnseignant[id]) matieresByEnseignant[id] = [];
+          matieresByEnseignant[id].push({
+            matiere: mc.matiere ? mc.matiere.libelle : "—",
+            classe: mc.classe ? mc.classe.libelle : "—",
+            coefficient: mc.coefficient
+          });
+        });
+
+        titulairesByEnseignant = {};
+        titulairesClasse.forEach((tc) => {
+          const id = tc.enseignant_id;
+          if (!titulairesByEnseignant[id]) titulairesByEnseignant[id] = [];
+          titulairesByEnseignant[id].push({
+            classe: tc.classe ? tc.classe.libelle : "—",
+            annee: tc.annee_scolaire ? tc.annee_scolaire.libelle : "—"
+          });
+        });
+      }
+
+      function populateGradeFilter() {
+        const select = document.getElementById("filterGrade");
+        const current = select.value;
+        const grades = Array.from(new Set(
+          enseignants.map((e) => (e.grade || "").trim()).filter(Boolean)
+        )).sort();
+        select.innerHTML = '<option value="">Tous les grades</option>' +
+          grades.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+        select.value = current;
+      }
+
+      /* ─────────────────────────────────────────
+         STATS
+      ───────────────────────────────────────── */
+      function renderStats() {
+        const total = enseignants.length;
+        const titulaireIds = new Set(Object.keys(titulairesByEnseignant).map(Number));
+        const nbTitulaires = titulaireIds.size;
+        const nbAffectations = matieresClasse.length;
+
+        document.getElementById("statTotal").textContent = total;
+        document.getElementById("statTotalChange").textContent = total > 0 ? "Effectif total" : "Aucun enseignant";
+
+        document.getElementById("statTitulaires").textContent = nbTitulaires;
+        document.getElementById("statTitulairesChange").textContent =
+          total > 0 ? `${Math.round((nbTitulaires / total) * 100)}% des enseignants` : "—";
+
+        document.getElementById("statAffectations").textContent = nbAffectations;
+
+        const gradeCounts = {};
+        enseignants.forEach((e) => {
+          const g = (e.grade || "Non renseigné").trim() || "Non renseigné";
+          gradeCounts[g] = (gradeCounts[g] || 0) + 1;
+        });
+        const sortedGrades = Object.entries(gradeCounts).sort((a, b) => b[1] - a[1]);
+        if (sortedGrades.length > 0) {
+          document.getElementById("statTopGrade").textContent = sortedGrades[0][0];
+          document.getElementById("statTopGradeChange").textContent = `${sortedGrades[0][1]} enseignant(s)`;
+        } else {
+          document.getElementById("statTopGrade").textContent = "—";
+          document.getElementById("statTopGradeChange").textContent = "—";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES (Chart.js)
+      ───────────────────────────────────────── */
+      const PALETTE = () => [
+        cssVar("--ta-primary"), cssVar("--ta-success"), cssVar("--ta-warning"),
+        cssVar("--ta-info"), cssVar("--ta-danger"), "#8B5CF6", "#F97316", "#0EA5E9"
+      ];
+
+      function renderCharts() {
+        renderChartGrades();
+        renderChartCharge();
+        renderChartTitulaires();
+      }
+
+      function renderChartGrades() {
+        const ctx = document.getElementById("chartGrades");
+        const emptyEl = document.getElementById("chartGradesEmpty");
+        const gradeCounts = {};
+        enseignants.forEach((e) => {
+          const g = (e.grade || "Non renseigné").trim() || "Non renseigné";
+          gradeCounts[g] = (gradeCounts[g] || 0) + 1;
+        });
+        const labels = Object.keys(gradeCounts);
+        const data = Object.values(gradeCounts);
+
+        if (chartGrades) chartGrades.destroy();
+
+        if (labels.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartGrades = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: PALETTE(),
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label}: ${c.raw} enseignant(s)`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartCharge() {
+        const ctx = document.getElementById("chartCharge");
+        const emptyEl = document.getElementById("chartChargeEmpty");
+
+        const counts = enseignants.map((e) => ({
+          nom: fullName(e) || "—",
+          count: (matieresByEnseignant[e.id] || []).length
+        })).filter((x) => x.count > 0)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 8);
+
+        if (chartCharge) chartCharge.destroy();
+
+        if (counts.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartCharge = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: counts.map((c) => c.nom),
+            datasets: [{
+              label: "Matières enseignées",
+              data: counts.map((c) => c.count),
+              backgroundColor: cssVar("--ta-primary"),
+              borderRadius: 4,
+              maxBarThickness: 26
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.raw} matière(s)/classe(s)`
+                }
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              },
+              y: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+
+      function renderChartTitulaires() {
+      const ctx = document.getElementById("chartTitulaires");
+      const total = enseignants.length;
+      const nbTitulaires = new Set(Object.keys(titulairesByEnseignant).map(Number)).size;
+      const nbNonTitulaires = Math.max(total - nbTitulaires, 0);
+
+      document.getElementById("legendTitulaires").textContent = nbTitulaires;
+      document.getElementById("legendNonTitulaires").textContent = nbNonTitulaires;
+
+      if (chartTitulaires) chartTitulaires.destroy();
+
+      chartTitulaires = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Titulaires", "Sans classe titularisée"],
+          datasets: [{
+            data: [nbTitulaires, nbNonTitulaires],
+            backgroundColor: total > 0
+              ? [cssVar("--ta-success"), cssVar("--ta-border")]
+              : [cssVar("--ta-border"), cssVar("--ta-border")],
+            borderWidth: 2,
+            borderColor: "#FFFFFF"
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: "68%",
+          plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } }
+        }
+      });
+    }
+
+      /* ─────────────────────────────────────────
+         TABLEAU
+      ───────────────────────────────────────── */
+      function renderLoadingTable() {
+        document.getElementById("tableBody").innerHTML = `
+          <tr><td colspan="7" class="text-center text-muted py-5">
+            <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+            Chargement des enseignants…
+          </td></tr>`;
+      }
+
+      function getFilteredEnseignants() {
+        const search = document.getElementById("filterSearch").value.trim().toLowerCase();
+        const grade = document.getElementById("filterGrade").value;
+        const statut = document.getElementById("filterStatut").value;
+
+        return enseignants.filter((e) => {
+          if (search) {
+            const haystack = `${e.nom || ""} ${e.prenom || ""} ${e.email || ""}`.toLowerCase();
+            if (!haystack.includes(search)) return false;
+          }
+          if (grade && (e.grade || "") !== grade) return false;
+          if (statut) {
+            const isTitulaire = !!(titulairesByEnseignant[e.id] && titulairesByEnseignant[e.id].length);
+            if (statut === "titulaire" && !isTitulaire) return false;
+            if (statut === "non-titulaire" && isTitulaire) return false;
+          }
+          return true;
+        });
+      }
+
+      function renderTable() {
+        const list = getFilteredEnseignants();
+        const tbody = document.getElementById("tableBody");
+        document.getElementById("badgeCount").textContent = enseignants.length;
+        document.getElementById("footerCount").textContent =
+          `Affichage ${list.length} sur ${enseignants.length} enseignant(s)`;
+
+        if (list.length === 0) {
+          tbody.innerHTML = `
+            <tr><td colspan="7" class="text-center text-muted py-5">
+              <i class="fa-solid fa-user-slash fa-lg mb-2 d-block"></i>
+              Aucun enseignant ne correspond aux critères.
+            </td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = list.map((e) => {
+          const classes = titulairesByEnseignant[e.id] || [];
+          const matieres = matieresByEnseignant[e.id] || [];
+          const isTitulaire = classes.length > 0;
+
+          const classesHtml = classes.length > 0
+            ? classes.slice(0, 2).map((c) => `<span class="badge badge-primary me-1 mb-1">${escapeHtml(c.classe)}</span>`).join("") +
+              (classes.length > 2 ? `<span class="badge badge-neutral">+${classes.length - 2}</span>` : "")
+            : `<span class="text-muted">—</span>`;
+
+          const matieresHtml = matieres.length > 0
+            ? `<span class="fw-bold text-primary">${matieres.length}</span> <span class="text-muted">matière(s)/classe(s)</span>`
+            : `<span class="text-muted">Aucune</span>`;
+
+          return `
+            <tr>
+              <td>
+                <div class="eleve-card">
+                  <div class="eleve-avatar-placeholder">${escapeHtml(initials(e.nom, e.prenom))}</div>
+                  <div>
+                    <div class="eleve-name">${escapeHtml(fullName(e))}</div>
+                    <div class="eleve-matricule">ID #${e.id}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div>${escapeHtml(e.email || "—")}</div>
+                <div class="text-muted" style="font-size:11px;">${escapeHtml(e.telephone || "—")}</div>
+              </td>
+              <td>${e.grade ? `<span class="badge badge-info">${escapeHtml(e.grade)}</span>` : '<span class="text-muted">—</span>'}</td>
+              <td>${isTitulaire ? '<span class="badge badge-success">Titulaire</span>' : '<span class="badge badge-neutral">Non titulaire</span>'}</td>
+              <td>${classesHtml}</td>
+              <td>${matieresHtml}</td>
+              <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light btn-view" data-id="${e.id}" title="Voir la fiche"><i class="fa-solid fa-eye"></i></button>
+                <button class="btn btn-icon btn-sm btn-light btn-edit" data-id="${e.id}" title="Modifier"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-icon btn-sm btn-light text-danger btn-delete" data-id="${e.id}" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+        }).join("");
+
+        bindRowActions();
+      }
+
+      function bindRowActions() {
+        document.querySelectorAll(".btn-view").forEach((btn) => {
+          btn.addEventListener("click", () => openDetailModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-edit").forEach((btn) => {
+          btn.addEventListener("click", () => openEditModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.addEventListener("click", () => openDeleteModal(Number(btn.dataset.id)));
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         MODAL CRÉATION / ÉDITION
+      ───────────────────────────────────────── */
+      function resetForm() {
+        document.getElementById("formEnseignant").classList.remove("was-validated");
+        document.getElementById("fEnseignantId").value = "";
+        document.getElementById("fNom").value = "";
+        document.getElementById("fPrenom").value = "";
+        document.getElementById("fEmail").value = "";
+        document.getElementById("fTelephone").value = "";
+        document.getElementById("fGrade").value = "";
+        document.getElementById("fEstTitulaire").checked = false;
+        document.getElementById("modalEnseignantTitle").innerHTML =
+          '<i class="fa-solid fa-user-tie me-2 text-primary"></i>Nouvel enseignant';
+        document.getElementById("btnSaveEnseignantLabel").textContent = "Créer l'enseignant";
+      }
+
+      document.getElementById("btnNouvelEnseignant").addEventListener("click", resetForm);
+
+      function openEditModal(id) {
+        const e = enseignants.find((x) => x.id === id);
+        if (!e) return;
+        resetForm();
+        document.getElementById("fEnseignantId").value = e.id;
+        document.getElementById("fNom").value = e.nom || "";
+        document.getElementById("fPrenom").value = e.prenom || "";
+        document.getElementById("fEmail").value = e.email || "";
+        document.getElementById("fTelephone").value = e.telephone || "";
+        document.getElementById("fGrade").value = e.grade || "";
+        document.getElementById("fEstTitulaire").checked = !!e.est_titulaire;
+        document.getElementById("modalEnseignantTitle").innerHTML =
+          '<i class="fa-solid fa-pen me-2 text-primary"></i>Modifier l\'enseignant';
+        document.getElementById("btnSaveEnseignantLabel").textContent = "Enregistrer les modifications";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalEnseignant")).show();
+      }
+
+      document.getElementById("btnSaveEnseignant").addEventListener("click", async () => {
+        const form = document.getElementById("formEnseignant");
+        const nom = document.getElementById("fNom").value.trim();
+        const prenom = document.getElementById("fPrenom").value.trim();
+        const email = document.getElementById("fEmail").value.trim();
+
+        if (!nom || !prenom || !email || !form.checkValidity()) {
+          form.classList.add("was-validated");
+          return;
+        }
+
+        const id = document.getElementById("fEnseignantId").value;
+        const payload = {
+          nom,
+          prenom,
+          email,
+          telephone: document.getElementById("fTelephone").value.trim(),
+          grade: document.getElementById("fGrade").value.trim(),
+          est_titulaire: document.getElementById("fEstTitulaire").checked
+        };
+
+        const btn = document.getElementById("btnSaveEnseignant");
+        btn.disabled = true;
+        try {
+          if (id) {
+            await apiCall(`/enseignants/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+            showToast("Enseignant mis à jour avec succès.");
+          } else {
+            await apiCall("/enseignants", { method: "POST", body: JSON.stringify(payload) });
+            showToast("Enseignant créé avec succès.");
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalEnseignant")).hide();
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Une erreur est survenue.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         MODAL DÉTAIL
+      ───────────────────────────────────────── */
+      function openDetailModal(id) {
+        const e = enseignants.find((x) => x.id === id);
+        if (!e) return;
+
+        document.getElementById("detailAvatar").textContent = initials(e.nom, e.prenom);
+        document.getElementById("detailNomComplet").textContent = fullName(e);
+        document.getElementById("detailGrade").textContent = e.grade || "Grade non renseigné";
+        document.getElementById("detailEmail").textContent = e.email || "—";
+        document.getElementById("detailTelephone").textContent = e.telephone || "—";
+
+        const classes = titulairesByEnseignant[e.id] || [];
+        document.getElementById("detailClasses").innerHTML = classes.length > 0
+          ? classes.map((c) => `<span class="badge badge-primary me-1 mb-1">${escapeHtml(c.classe)} <span class="text-muted">(${escapeHtml(c.annee)})</span></span>`).join("")
+          : '<span class="text-muted">Aucune classe titularisée</span>';
+
+        const matieres = matieresByEnseignant[e.id] || [];
+        const tbody = document.querySelector("#detailMatieresTable tbody");
+        tbody.innerHTML = matieres.length > 0
+          ? matieres.map((m) => `
+              <tr>
+                <td>${escapeHtml(m.matiere)}</td>
+                <td>${escapeHtml(m.classe)}</td>
+                <td>${m.coefficient != null ? m.coefficient : "—"}</td>
+              </tr>`).join("")
+          : `<tr><td colspan="3" class="text-center text-muted py-3">Aucune matière affectée</td></tr>`;
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalDetailEnseignant")).show();
+      }
+
+      /* ─────────────────────────────────────────
+         SUPPRESSION
+      ───────────────────────────────────────── */
+      function openDeleteModal(id) {
+        const e = enseignants.find((x) => x.id === id);
+        if (!e) return;
+        deleteTargetId = id;
+        document.getElementById("deleteEnseignantNom").textContent = fullName(e);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalConfirmSuppression")).show();
+      }
+
+      document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
+        if (!deleteTargetId) return;
+        const btn = document.getElementById("btnConfirmDelete");
+        btn.disabled = true;
+        try {
+          await apiCall(`/enseignants/${deleteTargetId}`, { method: "DELETE" });
+          showToast("Enseignant supprimé avec succès.");
+          bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression")).hide();
+          deleteTargetId = null;
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Impossible de supprimer cet enseignant.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         FILTRES
+      ───────────────────────────────────────── */
+      let searchDebounce = null;
+      document.getElementById("filterSearch").addEventListener("input", () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(renderTable, 200);
+      });
+      document.getElementById("filterGrade").addEventListener("change", renderTable);
+      document.getElementById("filterStatut").addEventListener("change", renderTable);
+      document.getElementById("btnResetFilters").addEventListener("click", () => {
+        document.getElementById("filterSearch").value = "";
+        document.getElementById("filterGrade").value = "";
+        document.getElementById("filterStatut").value = "";
+        renderTable();
+      });
+
+      /* ─────────────────────────────────────────
+         ACTUALISATION / EXPORT
+      ───────────────────────────────────────── */
+      document.getElementById("btnRefresh").addEventListener("click", loadAll);
+
+      document.getElementById("btnExportCsv").addEventListener("click", () => {
+        if (enseignants.length === 0) {
+          showToast("Aucune donnée à exporter.", "error");
+          return;
+        }
+        const rows = [["Nom", "Prénom", "Email", "Téléphone", "Grade", "Titulaire", "Classes", "Nb matières"]];
+        enseignants.forEach((e) => {
+          const classes = (titulairesByEnseignant[e.id] || []).map((c) => c.classe).join(" | ");
+          const nbMatieres = (matieresByEnseignant[e.id] || []).length;
+          rows.push([
+            e.nom || "", e.prenom || "", e.email || "", e.telephone || "",
+            e.grade || "", classes ? "Oui" : "Non", classes, nbMatieres
+          ]);
+        });
+        const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "enseignants.csv";
+        link.click();
+      });
+
+      /* ─────────────────────────────────────────
+         INIT
+      ───────────────────────────────────────── */
+      function init() {
+        document.getElementById("modalEnseignant").addEventListener("hidden.bs.modal", resetForm);
+        loadAll();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

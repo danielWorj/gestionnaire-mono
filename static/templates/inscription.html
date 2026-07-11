@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Élèves & Inscriptions — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body data-page="eleves">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Élèves & Inscriptions</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Élèves & Inscriptions</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Gérez les élèves, leurs inscriptions par année scolaire et leurs transferts de classe.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <div class="btn-group">
+              <select class="form-select form-select-sm" id="filterAnneeGlobal" style="min-width:170px;">
+                <option value="">Toutes les années</option>
+              </select>
+            </div>
+            <button class="btn btn-light btn-sm" type="button" id="btnExportCsv">
+              <i class="fa-solid fa-file-export"></i> Exporter
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnNouvelEleve" data-bs-toggle="modal" data-bs-target="#modalEleve">
+              <i class="fa-solid fa-user-plus"></i> Nouvel élève
+            </button>
+            <button class="btn btn-primary btn-sm" type="button" id="btnNouvelleInscription" data-bs-toggle="modal" data-bs-target="#modalInscription">
+              <i class="fa-solid fa-plus"></i> Nouvelle inscription
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-label">Élèves enregistrés</div>
+              <div class="stat-value" id="statTotalEleves">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTotalElevesChange">Effectif total</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-file-signature"></i></div>
+              <div class="stat-label">Inscriptions (année sélectionnée)</div>
+              <div class="stat-value" id="statInscriptionsAnnee">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statInscriptionsAnneeChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon warning"><i class="fa-solid fa-rotate-left"></i></div>
+              <div class="stat-label">Redoublants</div>
+              <div class="stat-value" id="statRedoublants">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statRedoublantsChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon info"><i class="fa-solid fa-chalkboard"></i></div>
+              <div class="stat-label">Classe la plus peuplée</div>
+              <div class="stat-value" id="statTopClasse" style="font-size:16px;">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTopClasseChange">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition par statut
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartStatuts" height="230"></canvas>
+                <div id="chartStatutsEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune inscription disponible</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Effectifs par classe
+                </h2>
+                <span class="badge badge-primary">Année sélectionnée</span>
+              </div>
+              <div class="card-body">
+                <canvas id="chartClasses" height="230"></canvas>
+                <div id="chartClassesEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune inscription pour cette année</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-arrow-trend-up me-2 text-primary"></i>Évolution des inscriptions par année
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartEvolution" height="220"></canvas>
+                <div id="chartEvolutionEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-arrow-trend-up fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune donnée disponible</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-venus-mars me-2 text-primary"></i>Répartition par sexe
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-center g-4">
+                  <div class="col-md-5">
+                    <canvas id="chartSexe" height="180"></canvas>
+                  </div>
+                  <div class="col-md-7">
+                    <div class="d-flex flex-column gap-3">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:var(--ta-primary);display:inline-block;"></span>
+                          <span>Garçons</span>
+                        </div>
+                        <strong id="legendGarcons">—</strong>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                          <span style="width:10px;height:10px;border-radius:50%;background:#F97316;display:inline-block;"></span>
+                          <span>Filles</span>
+                        </div>
+                        <strong id="legendFilles">—</strong>
+                      </div>
+                      <hr class="divider">
+                      <p class="text-muted mb-0" style="font-size:11.5px;">
+                        Répartition calculée sur l'ensemble des élèves enregistrés, tous statuts et années confondus.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRES
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">Rechercher</label>
+                <input type="search" class="form-control form-control-sm" id="filterSearch" placeholder="Nom, prénom, matricule…">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Classe</label>
+                <select class="form-select form-select-sm" id="filterClasse">
+                  <option value="">Toutes les classes</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Statut</label>
+                <select class="form-select form-select-sm" id="filterStatut">
+                  <option value="">Tous les statuts</option>
+                  <option value="Inscrit">Inscrit</option>
+                  <option value="Redoublant">Redoublant</option>
+                  <option value="Transfere">Transféré</option>
+                  <option value="Abandon">Abandon</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Sexe</label>
+                <select class="form-select form-select-sm" id="filterSexe">
+                  <option value="">Tous</option>
+                  <option value="M">Masculin</option>
+                  <option value="F">Féminin</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-light btn-sm w-100" id="btnResetFilters"><i class="fa-solid fa-rotate-left"></i> Réinitialiser</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             TABLEAU INSCRIPTIONS
+        ═══════════════════════════════════════════════ -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <i class="fa-solid fa-file-signature me-2 text-primary"></i>Liste des inscriptions
+              <span class="badge badge-primary ms-2" id="badgeCount">0</span>
+            </h2>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Élève</th>
+                    <th>Matricule</th>
+                    <th>Classe</th>
+                    <th>Année scolaire</th>
+                    <th>Statut</th>
+                    <th>Date d'inscription</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                      <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+                      Chargement des inscriptions…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="footerCount">—</small>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvel / Modifier élève
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalEleve" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEleveTitle"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Nouvel élève</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formEleve" novalidate>
+            <input type="hidden" id="fEleveId" value="">
+            <input type="hidden" id="fEleveCurrentPhoto" value="">
+
+            <div class="d-flex align-items-center gap-3 mb-4">
+              <img id="fPhotoPreview" src="" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;display:none;">
+              <div class="eleve-avatar-placeholder" id="fPhotoPlaceholder" style="width:56px;height:56px;font-size:16px;">--</div>
+              <div class="flex-grow-1">
+                <label class="form-label mb-1">Photo de l'élève</label>
+                <input type="file" class="form-control form-control-sm" id="fPhotoFile" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+                <div class="form-text" style="font-size:11px;">Formats acceptés : png, jpg, jpeg, gif, webp.</div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Matricule *</label>
+                <input type="text" class="form-control" id="fMatricule" placeholder="Ex : EL-2026-001" required>
+                <div class="invalid-feedback">Le matricule est requis.</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Nom *</label>
+                <input type="text" class="form-control" id="fNom" placeholder="Ex : Mbarga" required>
+                <div class="invalid-feedback">Le nom est requis.</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Prénom *</label>
+                <input type="text" class="form-control" id="fPrenom" placeholder="Ex : Junior" required>
+                <div class="invalid-feedback">Le prénom est requis.</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Date de naissance</label>
+                <input type="date" class="form-control" id="fDateNaissance">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Lieu de naissance</label>
+                <input type="text" class="form-control" id="fLieuNaissance" placeholder="Ex : Douala">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Sexe</label>
+                <select class="form-select" id="fSexe">
+                  <option value="">—</option>
+                  <option value="M">Masculin</option>
+                  <option value="F">Féminin</option>
+                </select>
+              </div>
+              <div class="col-md-12">
+                <label class="form-label">Adresse de l'élève</label>
+                <input type="text" class="form-control" id="fAdresse">
+              </div>
+            </div>
+
+            <hr class="divider">
+            <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-people-roof me-1 text-primary"></i>Parent / Tuteur *</h6>
+
+            <div class="btn-group btn-group-sm mb-3" role="group">
+              <input type="radio" class="btn-check" name="parentMode" id="parentModeExistant" checked>
+              <label class="btn btn-outline-primary" for="parentModeExistant">Parent existant</label>
+              <input type="radio" class="btn-check" name="parentMode" id="parentModeNouveau">
+              <label class="btn btn-outline-primary" for="parentModeNouveau">Nouveau parent</label>
+            </div>
+
+            <div id="blocParentExistant" class="row g-3">
+              <div class="col-md-12">
+                <label class="form-label">Sélectionner un parent *</label>
+                <select class="form-select" id="fParentId">
+                  <option value="">Sélectionner un parent…</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="blocParentNouveau" class="row g-3" style="display:none;">
+              <div class="col-md-6">
+                <label class="form-label">Nom du parent *</label>
+                <input type="text" class="form-control" id="fParentNom">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Prénom du parent *</label>
+                <input type="text" class="form-control" id="fParentPrenom">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Téléphone</label>
+                <input type="tel" class="form-control" id="fParentTelephone" placeholder="Ex : 6 90 00 00 00">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="fParentEmail">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Profession</label>
+                <input type="text" class="form-control" id="fParentProfession">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Adresse du parent</label>
+                <input type="text" class="form-control" id="fParentAdresse">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnSaveEleve" type="button">
+            <i class="fa-solid fa-check"></i> <span id="btnSaveEleveLabel">Créer l'élève</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvelle / Modifier inscription
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalInscription" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalInscriptionTitle"><i class="fa-solid fa-file-signature me-2 text-primary"></i>Nouvelle inscription</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formInscription" novalidate>
+            <input type="hidden" id="fInscriptionId" value="">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Élève *</label>
+                <select class="form-select" id="fEleveSelect" required>
+                  <option value="">Sélectionner un élève…</option>
+                </select>
+                <div class="invalid-feedback">L'élève est requis.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Année scolaire *</label>
+                <select class="form-select" id="fAnneeSelect" required>
+                  <option value="">Sélectionner une année…</option>
+                </select>
+                <div class="invalid-feedback">L'année scolaire est requise.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Classe *</label>
+                <select class="form-select" id="fClasseSelect" required>
+                  <option value="">Sélectionner une classe…</option>
+                </select>
+                <div class="invalid-feedback">La classe est requise.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date d'inscription</label>
+                <input type="date" class="form-control" id="fDateInscription">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Statut</label>
+                <select class="form-select" id="fStatut">
+                  <option value="Inscrit">Inscrit</option>
+                  <option value="Redoublant">Redoublant</option>
+                  <option value="Transfere">Transféré</option>
+                  <option value="Abandon">Abandon</option>
+                </select>
+              </div>
+              <div class="col-md-6 d-flex align-items-center">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="fRedoublant">
+                  <label class="form-check-label" for="fRedoublant">Redoublant</label>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnSaveInscription" type="button">
+            <i class="fa-solid fa-check"></i> <span id="btnSaveInscriptionLabel">Créer l'inscription</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Transfert de classe
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalTransfert" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-right-left me-2 text-primary"></i>Transférer l'élève</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Élève : <strong id="transfertEleveNom">—</strong></p>
+          <p class="text-muted mb-3" style="font-size:11.5px;">Classe actuelle : <span id="transfertClasseActuelle">—</span></p>
+          <label class="form-label">Nouvelle classe *</label>
+          <select class="form-select" id="fTransfertClasse">
+            <option value="">Sélectionner une classe…</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary btn-sm" id="btnConfirmTransfert"><i class="fa-solid fa-right-left"></i> Confirmer le transfert</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Fiche élève (détail + historique)
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalDetailEleve" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-id-card me-2 text-primary"></i>Fiche élève</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <img id="detailPhoto" src="" alt="" style="width:52px;height:52px;border-radius:50%;object-fit:cover;display:none;">
+            <div class="eleve-avatar-placeholder" style="width:52px;height:52px;font-size:16px;" id="detailAvatar">--</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;" id="detailNomComplet">—</div>
+              <div class="text-muted" id="detailMatricule">—</div>
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Date de naissance</label>
+              <div id="detailDateNaissance">—</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Lieu de naissance</label>
+              <div id="detailLieuNaissance">—</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Sexe</label>
+              <div id="detailSexe">—</div>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Adresse</label>
+              <div id="detailAdresse">—</div>
+            </div>
+          </div>
+          <hr class="divider">
+          <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-people-roof me-1 text-primary"></i>Parent / Tuteur</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Nom complet</label>
+              <div id="detailParentNom">—</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone</label>
+              <div id="detailParentTelephone">—</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <div id="detailParentEmail">—</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Profession</label>
+              <div id="detailParentProfession">—</div>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Adresse</label>
+              <div id="detailParentAdresse">—</div>
+            </div>
+          </div>
+          <hr class="divider">
+          <h6 class="mb-2" style="font-size:12.5px;"><i class="fa-solid fa-clock-rotate-left me-1 text-primary"></i>Historique des inscriptions</h6>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="detailHistoriqueTable">
+              <thead>
+                <tr>
+                  <th>Année scolaire</th>
+                  <th>Classe</th>
+                  <th>Statut</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Fermer</button>
+          <button class="btn btn-outline-danger" id="btnDetailDeleteEleve" type="button"><i class="fa-solid fa-trash"></i> Supprimer l'élève</button>
+          <button class="btn btn-primary" id="btnDetailEditEleve" type="button"><i class="fa-solid fa-pen"></i> Modifier l'élève</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Confirmation suppression
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2" id="deleteMessage">Supprimer cet élément ?</p>
+          <p class="text-muted mb-0" style="font-size:11.5px;">Cette action est irréversible.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btnConfirmDelete"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page : logique inscriptions -->
+  <script>
+    (function () {
+      "use strict";
+
+      const API_BASE = "/api/inscription";
+      // API des parents (services/parent_service.py + api/parent_api.py)
+      const PARENT_API_BASE = "/api/parents";
+      // Endpoints de structure (classes / années scolaires) — adaptez le préfixe
+      // si votre blueprint "structure" utilise une autre route.
+      const STRUCTURE_API_BASE = "/api/structure";
+
+      /* ─────────────────────────────────────────
+         ÉTAT GLOBAL
+      ───────────────────────────────────────── */
+      let eleves = [];
+      let inscriptions = [];
+      let classes = [];
+      let annees = [];
+      let parents = [];
+      let chartStatuts = null;
+      let chartClasses = null;
+      let chartEvolution = null;
+      let chartSexe = null;
+      let deleteTarget = null; // { type: 'eleve'|'inscription', id }
+      let transfertTarget = null; // inscription
+      let currentDetailEleveId = null;
+
+      /* ─────────────────────────────────────────
+         HELPERS
+      ───────────────────────────────────────── */
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function initials(nom, prenom) {
+        const a = (prenom || "").trim().charAt(0).toUpperCase();
+        const b = (nom || "").trim().charAt(0).toUpperCase();
+        return (a + b) || "?";
+      }
+
+      function fullName(e) {
+        return `${e.prenom || ""} ${e.nom || ""}`.trim();
+      }
+
+      function parentFullName(p) {
+        if (!p) return "";
+        return `${p.prenom || ""} ${p.nom || ""}`.trim();
+      }
+
+      function statutBadgeClass(statut) {
+        switch (statut) {
+          case "Inscrit": return "badge-success";
+          case "Redoublant": return "badge-warning";
+          case "Transfere": return "badge-info";
+          case "Abandon": return "badge-danger";
+          default: return "badge-neutral";
+        }
+      }
+
+      function statutLabel(statut) {
+        return statut === "Transfere" ? "Transféré" : (statut || "—");
+      }
+
+      function showToast(message, type) {
+        const toastEl = document.getElementById("appToast");
+        const icon = document.getElementById("toastIcon");
+        const title = document.getElementById("toastTitle");
+        const body = document.getElementById("toastBody");
+        const isError = type === "error";
+        icon.className = isError
+          ? "fa-solid fa-circle-xmark text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        title.textContent = isError ? "Erreur" : "Succès";
+        body.textContent = message;
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
+        toast.show();
+      }
+
+      function escapeHtml(str) {
+        return (str || "").toString()
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString("fr-FR");
+      }
+
+      async function apiRequest(url, options) {
+        const res = await fetch(url, Object.assign({
+          headers: { "Content-Type": "application/json" }
+        }, options));
+        let json;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.success === false) {
+          throw new Error(json.error || `Erreur ${res.status}`);
+        }
+        return json;
+      }
+
+      async function apiCall(path, options) {
+        return apiRequest(`${API_BASE}${path}`, options);
+      }
+
+      async function parentApiCall(path, options) {
+        return apiRequest(`${PARENT_API_BASE}${path}`, options);
+      }
+
+      // Créer/mettre à jour un élève en multipart/form-data (l'API accepte une photo jointe).
+      // Important : ne PAS fixer de Content-Type — le navigateur définit lui-même le boundary.
+      async function apiCallMultipart(path, formData, method) {
+        const res = await fetch(`${API_BASE}${path}`, {
+          method: method || "POST",
+          body: formData
+        });
+        let json;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.success === false) {
+          throw new Error(json.error || `Erreur ${res.status}`);
+        }
+        return json;
+      }
+
+      // Les endpoints /api/structure/classes et /api/structure/annees-scolaires
+      // (voir structure_api.py) renvoient toujours {success, data, error?}.
+      // On ne fixe pas silencieusement une liste vide en cas d'erreur : on la
+      // remonte à l'appelant pour que loadAll() puisse avertir l'utilisateur.
+      async function structureApiCall(path) {
+        try {
+          const res = await fetch(`${STRUCTURE_API_BASE}${path}`);
+          let json;
+          try { json = await res.json(); } catch (e) { json = {}; }
+          if (!res.ok || json.success === false) {
+            return { data: null, error: json.error || `Erreur ${res.status}` };
+          }
+          return { data: json.data };
+        } catch (e) {
+          return { data: null, error: e.message || "Erreur réseau" };
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT DES DONNÉES
+      ───────────────────────────────────────── */
+      async function loadAll() {
+        renderLoadingTable();
+        try {
+          const [elRes, insRes, clRes, anRes, parRes, anActiveRes] = await Promise.all([
+            apiCall("/eleves"),
+            apiCall("/inscriptions"),
+            structureApiCall("/classes"),
+            structureApiCall("/annees-scolaires"),
+            parentApiCall("").catch((e) => { console.error("Erreur chargement parents:", e); return { data: [] }; }),
+            structureApiCall("/annees-scolaires/active")
+          ]);
+          eleves = elRes.data || [];
+          inscriptions = insRes.data || [];
+          parents = parRes.data || [];
+
+          // Repli : si l'API structure est indisponible ou renvoie une liste vide,
+          // reconstruire classes/années à partir des inscriptions existantes.
+          classes = (clRes.data && clRes.data.length) ? clRes.data : dedupeById(
+            inscriptions.map((i) => i.classe).filter(Boolean)
+          );
+          annees = (anRes.data && anRes.data.length) ? anRes.data : dedupeById(
+            inscriptions.map((i) => i.annee_scolaire).filter(Boolean)
+          );
+          // GET /annees-scolaires/active renvoie 404 (donc anActiveRes.data === null)
+          // s'il n'y a simplement aucune année active définie — ce n'est pas une erreur.
+          anneeActiveId = anActiveRes.data ? anActiveRes.data.id : null;
+
+          if (clRes.error) {
+            console.warn("Classes (API structure):", clRes.error);
+            showToast(`Classes : ${clRes.error}`, "error");
+          }
+          if (anRes.error) {
+            console.warn("Années scolaires (API structure):", anRes.error);
+            showToast(`Années scolaires : ${anRes.error}`, "error");
+          }
+
+          populateFilters();
+          populateFormSelects();
+          renderStats();
+          renderTable(); // 👈 données affichées même si les graphiques plantent
+
+          try {
+            renderCharts();
+          } catch (chartErr) {
+            console.error("Erreur graphiques:", chartErr);
+          }
+        } catch (err) {
+          showToast(err.message || "Impossible de charger les données", "error");
+          document.getElementById("tableBody").innerHTML = `
+            <tr><td colspan="7" class="text-center text-muted py-5">
+              <i class="fa-solid fa-triangle-exclamation fa-lg mb-2 d-block"></i>
+              Erreur de chargement des données.
+            </td></tr>`;
+        }
+      }
+
+      function dedupeById(arr) {
+        const map = new Map();
+        arr.forEach((x) => { if (x && x.id != null) map.set(x.id, x); });
+        return Array.from(map.values());
+      }
+
+      function classeLabel(c) {
+        if (!c) return "—";
+        return c.libelle || c.nom || `Classe #${c.id}`;
+      }
+
+      function anneeLabel(a) {
+        if (!a) return "—";
+        return a.libelle || a.nom || `Année #${a.id}`;
+      }
+
+      /* ─────────────────────────────────────────
+         FILTRES & SELECTS
+      ───────────────────────────────────────── */
+      function populateFilters() {
+        const classeSelect = document.getElementById("filterClasse");
+        const currentClasse = classeSelect.value;
+        classeSelect.innerHTML = '<option value="">Toutes les classes</option>' +
+          classes.map((c) => `<option value="${c.id}">${escapeHtml(classeLabel(c))}</option>`).join("");
+        classeSelect.value = currentClasse;
+
+        const anneeSelect = document.getElementById("filterAnneeGlobal");
+        const currentAnnee = anneeSelect.value;
+        anneeSelect.innerHTML = '<option value="">Toutes les années</option>' +
+          annees.map((a) => `<option value="${a.id}">${escapeHtml(anneeLabel(a))}</option>`).join("");
+        anneeSelect.value = currentAnnee || (annees[0] ? annees[0].id : "");
+      }
+
+      function populateFormSelects() {
+        const eleveSelect = document.getElementById("fEleveSelect");
+        eleveSelect.innerHTML = '<option value="">Sélectionner un élève…</option>' +
+          eleves.map((e) => `<option value="${e.id}">${escapeHtml(fullName(e))} (${escapeHtml(e.matricule)})</option>`).join("");
+
+        const classeSelects = [document.getElementById("fClasseSelect"), document.getElementById("fTransfertClasse")];
+        classeSelects.forEach((sel) => {
+          const placeholder = sel.querySelector("option");
+          sel.innerHTML = '<option value="">Sélectionner une classe…</option>' +
+            classes.map((c) => `<option value="${c.id}">${escapeHtml(classeLabel(c))}</option>`).join("");
+        });
+
+        const anneeSelect = document.getElementById("fAnneeSelect");
+        anneeSelect.innerHTML = '<option value="">Sélectionner une année…</option>' +
+          annees.map((a) => `<option value="${a.id}">${escapeHtml(anneeLabel(a))}</option>`).join("");
+
+        const parentSelect = document.getElementById("fParentId");
+        const currentParent = parentSelect.value;
+        parentSelect.innerHTML = '<option value="">Sélectionner un parent…</option>' +
+          parents.map((p) => `<option value="${p.id}">${escapeHtml(parentFullName(p))}${p.telephone ? " — " + escapeHtml(p.telephone) : ""}</option>`).join("");
+        parentSelect.value = currentParent;
+      }
+
+      function getSelectedAnneeId() {
+        const v = document.getElementById("filterAnneeGlobal").value;
+        return v ? Number(v) : null;
+      }
+
+      function getFilteredInscriptions() {
+        const search = document.getElementById("filterSearch").value.trim().toLowerCase();
+        const classeId = document.getElementById("filterClasse").value;
+        const statut = document.getElementById("filterStatut").value;
+        const sexe = document.getElementById("filterSexe").value;
+        const anneeId = getSelectedAnneeId();
+
+        return inscriptions.filter((i) => {
+          if (anneeId && i.annee_scolaire_id !== anneeId) return false;
+          if (classeId && String(i.classe_id) !== String(classeId)) return false;
+          if (statut && i.statut !== statut) return false;
+          if (sexe && (!i.eleve || i.eleve.sexe !== sexe)) return false;
+          if (search) {
+            const e = i.eleve || {};
+            const haystack = `${e.nom || ""} ${e.prenom || ""} ${e.matricule || ""}`.toLowerCase();
+            if (!haystack.includes(search)) return false;
+          }
+          return true;
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         STATS
+      ───────────────────────────────────────── */
+      function renderStats() {
+        const anneeId = getSelectedAnneeId();
+        const inscrAnnee = anneeId ? inscriptions.filter((i) => i.annee_scolaire_id === anneeId) : inscriptions;
+
+        document.getElementById("statTotalEleves").textContent = eleves.length;
+        document.getElementById("statTotalElevesChange").textContent = eleves.length > 0 ? "Effectif total" : "Aucun élève";
+
+        document.getElementById("statInscriptionsAnnee").textContent = inscrAnnee.length;
+        document.getElementById("statInscriptionsAnneeChange").textContent =
+          anneeId ? "Pour l'année sélectionnée" : "Toutes années confondues";
+
+        const redoublants = inscrAnnee.filter((i) => i.redoublant || i.statut === "Redoublant").length;
+        document.getElementById("statRedoublants").textContent = redoublants;
+        document.getElementById("statRedoublantsChange").textContent =
+          inscrAnnee.length > 0 ? `${Math.round((redoublants / inscrAnnee.length) * 100)}% des inscrits` : "—";
+
+        const classeCounts = {};
+        inscrAnnee.forEach((i) => {
+          const label = classeLabel(i.classe);
+          classeCounts[label] = (classeCounts[label] || 0) + 1;
+        });
+        const sortedClasses = Object.entries(classeCounts).sort((a, b) => b[1] - a[1]);
+        if (sortedClasses.length > 0) {
+          document.getElementById("statTopClasse").textContent = sortedClasses[0][0];
+          document.getElementById("statTopClasseChange").textContent = `${sortedClasses[0][1]} élève(s)`;
+        } else {
+          document.getElementById("statTopClasse").textContent = "—";
+          document.getElementById("statTopClasseChange").textContent = "—";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES (Chart.js)
+      ───────────────────────────────────────── */
+      const PALETTE = () => [
+        cssVar("--ta-primary"), cssVar("--ta-success"), cssVar("--ta-warning"),
+        cssVar("--ta-info"), cssVar("--ta-danger"), "#8B5CF6", "#F97316", "#0EA5E9"
+      ];
+
+      function renderCharts() {
+        renderChartStatuts();
+        renderChartClasses();
+        renderChartEvolution();
+        renderChartSexe();
+      }
+
+      function renderChartStatuts() {
+        const ctx = document.getElementById("chartStatuts");
+        const emptyEl = document.getElementById("chartStatutsEmpty");
+        const anneeId = getSelectedAnneeId();
+        const list = anneeId ? inscriptions.filter((i) => i.annee_scolaire_id === anneeId) : inscriptions;
+
+        const counts = {};
+        list.forEach((i) => {
+          const s = statutLabel(i.statut);
+          counts[s] = (counts[s] || 0) + 1;
+        });
+        const labels = Object.keys(counts);
+        const data = Object.values(counts);
+
+        if (chartStatuts) chartStatuts.destroy();
+
+        if (labels.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartStatuts = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: PALETTE(),
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label}: ${c.raw} élève(s)`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartClasses() {
+        const ctx = document.getElementById("chartClasses");
+        const emptyEl = document.getElementById("chartClassesEmpty");
+        const anneeId = getSelectedAnneeId();
+        const list = anneeId ? inscriptions.filter((i) => i.annee_scolaire_id === anneeId) : inscriptions;
+
+        const counts = {};
+        list.forEach((i) => {
+          const label = classeLabel(i.classe);
+          counts[label] = (counts[label] || 0) + 1;
+        });
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+        if (chartClasses) chartClasses.destroy();
+
+        if (sorted.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartClasses = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: sorted.map((s) => s[0]),
+            datasets: [{
+              label: "Élèves inscrits",
+              data: sorted.map((s) => s[1]),
+              backgroundColor: cssVar("--ta-primary"),
+              borderRadius: 4,
+              maxBarThickness: 34
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.raw} élève(s)`
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              }
+            }
+          }
+        });
+      }
+
+      function renderChartEvolution() {
+        const ctx = document.getElementById("chartEvolution");
+        const emptyEl = document.getElementById("chartEvolutionEmpty");
+
+        const counts = {};
+        inscriptions.forEach((i) => {
+          const label = anneeLabel(i.annee_scolaire);
+          counts[label] = (counts[label] || 0) + 1;
+        });
+        // Tri par id d'année si possible pour respecter l'ordre chronologique
+        const orderedIds = annees.slice().sort((a, b) => a.id - b.id).map((a) => anneeLabel(a));
+        const labels = orderedIds.length ? orderedIds.filter((l) => counts[l] !== undefined) : Object.keys(counts);
+        const data = labels.map((l) => counts[l] || 0);
+
+        if (chartEvolution) chartEvolution.destroy();
+
+        if (labels.length === 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartEvolution = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "Inscriptions",
+              data: data,
+              borderColor: cssVar("--ta-primary"),
+              backgroundColor: cssVar("--ta-primary-light"),
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+              pointBackgroundColor: cssVar("--ta-primary")
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.raw} inscription(s)`
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              }
+            }
+          }
+        });
+      }
+
+      function renderChartSexe() {
+        const ctx = document.getElementById("chartSexe");
+        const nbGarcons = eleves.filter((e) => e.sexe === "M").length;
+        const nbFilles = eleves.filter((e) => e.sexe === "F").length;
+
+        document.getElementById("legendGarcons").textContent = nbGarcons;
+        document.getElementById("legendFilles").textContent = nbFilles;
+
+        if (chartSexe) chartSexe.destroy();
+
+        const total = nbGarcons + nbFilles;
+        chartSexe = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Garçons", "Filles"],
+            datasets: [{
+              data: [nbGarcons, nbFilles],
+              backgroundColor: total > 0
+                ? [cssVar("--ta-primary"), "#F97316"]
+                : [cssVar("--ta-border"), cssVar("--ta-border")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "68%",
+            plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } }
+          }
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         TABLEAU
+      ───────────────────────────────────────── */
+      function renderLoadingTable() {
+        document.getElementById("tableBody").innerHTML = `
+          <tr><td colspan="7" class="text-center text-muted py-5">
+            <i class="fa-solid fa-spinner fa-spin fa-lg mb-2 d-block"></i>
+            Chargement des inscriptions…
+          </td></tr>`;
+      }
+
+      function renderTable() {
+        const list = getFilteredInscriptions();
+        const tbody = document.getElementById("tableBody");
+        document.getElementById("badgeCount").textContent = inscriptions.length;
+        document.getElementById("footerCount").textContent =
+          `Affichage ${list.length} sur ${inscriptions.length} inscription(s)`;
+
+        if (list.length === 0) {
+          tbody.innerHTML = `
+            <tr><td colspan="7" class="text-center text-muted py-5">
+              <i class="fa-solid fa-user-slash fa-lg mb-2 d-block"></i>
+              Aucune inscription ne correspond aux critères.
+            </td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = list.map((i) => {
+          const e = i.eleve || {};
+          return `
+            <tr>
+              <td>
+                <div class="eleve-card" style="cursor:pointer;" data-id="${e.id || ''}" data-action="detail">
+                  ${e.photo_url
+                    ? `<img src="${API_BASE}/eleves/${e.id}/photo" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">`
+                    : `<div class="eleve-avatar-placeholder">${escapeHtml(initials(e.nom, e.prenom))}</div>`}
+                  <div>
+                    <div class="eleve-name">${escapeHtml(fullName(e))}</div>
+                    <div class="eleve-matricule">${escapeHtml(e.matricule || "—")}</div>
+                  </div>
+                </div>
+              </td>
+              <td>${escapeHtml(e.matricule || "—")}</td>
+              <td>${escapeHtml(classeLabel(i.classe))}</td>
+              <td>${escapeHtml(anneeLabel(i.annee_scolaire))}</td>
+              <td><span class="badge ${statutBadgeClass(i.statut)}">${escapeHtml(statutLabel(i.statut))}</span></td>
+              <td>${formatDate(i.date_inscription)}</td>
+              <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light btn-view" data-id="${e.id || ''}" title="Voir la fiche"><i class="fa-solid fa-eye"></i></button>
+                <button class="btn btn-icon btn-sm btn-light btn-transfer" data-id="${i.id}" title="Transférer"><i class="fa-solid fa-right-left"></i></button>
+                <button class="btn btn-icon btn-sm btn-light btn-edit" data-id="${i.id}" title="Modifier"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-icon btn-sm btn-light text-danger btn-delete" data-id="${i.id}" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+        }).join("");
+
+        bindRowActions();
+      }
+
+      function bindRowActions() {
+        document.querySelectorAll(".btn-view, .eleve-card[data-action='detail']").forEach((btn) => {
+          btn.addEventListener("click", () => openDetailModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-edit").forEach((btn) => {
+          btn.addEventListener("click", () => openEditInscriptionModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-transfer").forEach((btn) => {
+          btn.addEventListener("click", () => openTransfertModal(Number(btn.dataset.id)));
+        });
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.addEventListener("click", () => openDeleteModal("inscription", Number(btn.dataset.id)));
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         MODAL CRÉATION / ÉDITION ÉLÈVE
+      ───────────────────────────────────────── */
+      function toggleParentMode() {
+        const existant = document.getElementById("parentModeExistant").checked;
+        document.getElementById("blocParentExistant").style.display = existant ? "" : "none";
+        document.getElementById("blocParentNouveau").style.display = existant ? "none" : "";
+      }
+      document.getElementById("parentModeExistant").addEventListener("change", toggleParentMode);
+      document.getElementById("parentModeNouveau").addEventListener("change", toggleParentMode);
+
+      document.getElementById("fPhotoFile").addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        const preview = document.getElementById("fPhotoPreview");
+        const placeholder = document.getElementById("fPhotoPlaceholder");
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          preview.src = ev.target.result;
+          preview.style.display = "block";
+          placeholder.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      });
+
+      function resetFormEleve() {
+        document.getElementById("formEleve").classList.remove("was-validated");
+        document.getElementById("fEleveId").value = "";
+        document.getElementById("fEleveCurrentPhoto").value = "";
+        document.getElementById("fMatricule").value = "";
+        document.getElementById("fNom").value = "";
+        document.getElementById("fPrenom").value = "";
+        document.getElementById("fDateNaissance").value = "";
+        document.getElementById("fLieuNaissance").value = "";
+        document.getElementById("fSexe").value = "";
+        document.getElementById("fAdresse").value = "";
+        document.getElementById("fPhotoFile").value = "";
+        document.getElementById("fPhotoPreview").src = "";
+        document.getElementById("fPhotoPreview").style.display = "none";
+        document.getElementById("fPhotoPlaceholder").style.display = "";
+        document.getElementById("fPhotoPlaceholder").textContent = "--";
+        document.getElementById("fParentId").value = "";
+        document.getElementById("fParentNom").value = "";
+        document.getElementById("fParentPrenom").value = "";
+        document.getElementById("fParentTelephone").value = "";
+        document.getElementById("fParentEmail").value = "";
+        document.getElementById("fParentProfession").value = "";
+        document.getElementById("fParentAdresse").value = "";
+        document.getElementById("parentModeExistant").checked = true;
+        toggleParentMode();
+        document.getElementById("modalEleveTitle").innerHTML =
+          '<i class="fa-solid fa-user-plus me-2 text-primary"></i>Nouvel élève';
+        document.getElementById("btnSaveEleveLabel").textContent = "Créer l'élève";
+      }
+
+      document.getElementById("btnNouvelEleve").addEventListener("click", resetFormEleve);
+
+      function openEditEleveModal(eleveId) {
+        const e = eleves.find((x) => x.id === eleveId);
+        if (!e) return;
+        resetFormEleve();
+        document.getElementById("fEleveId").value = e.id;
+        document.getElementById("fEleveCurrentPhoto").value = e.photo_url || "";
+        document.getElementById("fMatricule").value = e.matricule || "";
+        document.getElementById("fNom").value = e.nom || "";
+        document.getElementById("fPrenom").value = e.prenom || "";
+        document.getElementById("fDateNaissance").value = (e.date_naissance || "").slice(0, 10);
+        document.getElementById("fLieuNaissance").value = e.lieu_naissance || "";
+        document.getElementById("fSexe").value = e.sexe || "";
+        document.getElementById("fAdresse").value = e.adresse || "";
+
+        if (e.photo_url) {
+          document.getElementById("fPhotoPreview").src = `${API_BASE}/eleves/${e.id}/photo`;
+          document.getElementById("fPhotoPreview").style.display = "block";
+          document.getElementById("fPhotoPlaceholder").style.display = "none";
+        }
+
+        if (e.parent_id) {
+          document.getElementById("parentModeExistant").checked = true;
+          document.getElementById("fParentId").value = e.parent_id;
+        } else {
+          document.getElementById("parentModeNouveau").checked = true;
+        }
+        toggleParentMode();
+
+        document.getElementById("modalEleveTitle").innerHTML =
+          '<i class="fa-solid fa-pen me-2 text-primary"></i>Modifier l\'élève';
+        document.getElementById("btnSaveEleveLabel").textContent = "Enregistrer les modifications";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalEleve")).show();
+      }
+
+      document.getElementById("btnSaveEleve").addEventListener("click", async () => {
+        const form = document.getElementById("formEleve");
+        const matricule = document.getElementById("fMatricule").value.trim();
+        const nom = document.getElementById("fNom").value.trim();
+        const prenom = document.getElementById("fPrenom").value.trim();
+        const parentExistant = document.getElementById("parentModeExistant").checked;
+        const parentId = document.getElementById("fParentId").value;
+        const parentNom = document.getElementById("fParentNom").value.trim();
+        const parentPrenom = document.getElementById("fParentPrenom").value.trim();
+
+        let valid = !!matricule && !!nom && !!prenom && form.checkValidity();
+        if (parentExistant) {
+          valid = valid && !!parentId;
+        } else {
+          valid = valid && !!parentNom && !!parentPrenom;
+        }
+
+        if (!valid) {
+          form.classList.add("was-validated");
+          if (parentExistant && !parentId) {
+            showToast("Veuillez sélectionner un parent existant.", "error");
+          } else if (!parentExistant && (!parentNom || !parentPrenom)) {
+            showToast("Le nom et le prénom du nouveau parent sont requis.", "error");
+          }
+          return;
+        }
+
+        const id = document.getElementById("fEleveId").value;
+        const formData = new FormData();
+        formData.append("matricule", matricule);
+        formData.append("nom", nom);
+        formData.append("prenom", prenom);
+
+        const dateNaissance = document.getElementById("fDateNaissance").value;
+        if (dateNaissance) formData.append("date_naissance", dateNaissance);
+        const lieuNaissance = document.getElementById("fLieuNaissance").value.trim();
+        if (lieuNaissance) formData.append("lieu_naissance", lieuNaissance);
+        const sexe = document.getElementById("fSexe").value;
+        if (sexe) formData.append("sexe", sexe);
+        const adresse = document.getElementById("fAdresse").value.trim();
+        if (adresse) formData.append("adresse", adresse);
+
+        if (parentExistant) {
+          formData.append("parent_id", parentId);
+        } else {
+          formData.append("parent_nom", parentNom);
+          formData.append("parent_prenom", parentPrenom);
+          const tel = document.getElementById("fParentTelephone").value.trim();
+          if (tel) formData.append("parent_telephone", tel);
+          const email = document.getElementById("fParentEmail").value.trim();
+          if (email) formData.append("parent_email", email);
+          const padresse = document.getElementById("fParentAdresse").value.trim();
+          if (padresse) formData.append("parent_adresse", padresse);
+          const profession = document.getElementById("fParentProfession").value.trim();
+          if (profession) formData.append("parent_profession", profession);
+        }
+
+        const photoFile = document.getElementById("fPhotoFile").files[0];
+        if (photoFile) formData.append("photo", photoFile);
+
+        const btn = document.getElementById("btnSaveEleve");
+        btn.disabled = true;
+        try {
+          if (id) {
+            await apiCallMultipart(`/eleves/${id}`, formData, "PUT");
+            showToast("Élève mis à jour avec succès.");
+          } else {
+            await apiCallMultipart("/eleves", formData, "POST");
+            showToast("Élève créé avec succès.");
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalEleve")).hide();
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Une erreur est survenue.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         MODAL CRÉATION / ÉDITION INSCRIPTION
+      ───────────────────────────────────────── */
+      function resetFormInscription() {
+        document.getElementById("formInscription").classList.remove("was-validated");
+        document.getElementById("fInscriptionId").value = "";
+        document.getElementById("fEleveSelect").value = "";
+        document.getElementById("fAnneeSelect").value = "";
+        document.getElementById("fClasseSelect").value = "";
+        document.getElementById("fDateInscription").value = "";
+        document.getElementById("fStatut").value = "Inscrit";
+        document.getElementById("fRedoublant").checked = false;
+        document.getElementById("fEleveSelect").disabled = false;
+        document.getElementById("modalInscriptionTitle").innerHTML =
+          '<i class="fa-solid fa-file-signature me-2 text-primary"></i>Nouvelle inscription';
+        document.getElementById("btnSaveInscriptionLabel").textContent = "Créer l'inscription";
+      }
+
+      document.getElementById("btnNouvelleInscription").addEventListener("click", resetFormInscription);
+
+      function openEditInscriptionModal(id) {
+        const i = inscriptions.find((x) => x.id === id);
+        if (!i) return;
+        resetFormInscription();
+        document.getElementById("fInscriptionId").value = i.id;
+        document.getElementById("fEleveSelect").value = i.eleve_id;
+        document.getElementById("fEleveSelect").disabled = true;
+        document.getElementById("fAnneeSelect").value = i.annee_scolaire_id;
+        document.getElementById("fClasseSelect").value = i.classe_id;
+        document.getElementById("fDateInscription").value = (i.date_inscription || "").slice(0, 10);
+        document.getElementById("fStatut").value = i.statut || "Inscrit";
+        document.getElementById("fRedoublant").checked = !!i.redoublant;
+        document.getElementById("modalInscriptionTitle").innerHTML =
+          '<i class="fa-solid fa-pen me-2 text-primary"></i>Modifier l\'inscription';
+        document.getElementById("btnSaveInscriptionLabel").textContent = "Enregistrer les modifications";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalInscription")).show();
+      }
+
+      document.getElementById("btnSaveInscription").addEventListener("click", async () => {
+        const form = document.getElementById("formInscription");
+        const eleveId = document.getElementById("fEleveSelect").value;
+        const anneeId = document.getElementById("fAnneeSelect").value;
+        const classeId = document.getElementById("fClasseSelect").value;
+
+        if (!eleveId || !anneeId || !classeId || !form.checkValidity()) {
+          form.classList.add("was-validated");
+          return;
+        }
+
+        const id = document.getElementById("fInscriptionId").value;
+        const payload = {
+          eleve_id: Number(eleveId),
+          classe_id: Number(classeId),
+          annee_scolaire_id: Number(anneeId),
+          date_inscription: document.getElementById("fDateInscription").value || null,
+          statut: document.getElementById("fStatut").value,
+          redoublant: document.getElementById("fRedoublant").checked
+        };
+
+        const btn = document.getElementById("btnSaveInscription");
+        btn.disabled = true;
+        try {
+          if (id) {
+            await apiCall(`/inscriptions/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+            showToast("Inscription mise à jour avec succès.");
+          } else {
+            await apiCall("/inscriptions", { method: "POST", body: JSON.stringify(payload) });
+            showToast("Inscription créée avec succès.");
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalInscription")).hide();
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Une erreur est survenue.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         TRANSFERT DE CLASSE
+      ───────────────────────────────────────── */
+      function openTransfertModal(inscriptionId) {
+        const i = inscriptions.find((x) => x.id === inscriptionId);
+        if (!i) return;
+        transfertTarget = i;
+        document.getElementById("transfertEleveNom").textContent = fullName(i.eleve || {});
+        document.getElementById("transfertClasseActuelle").textContent = classeLabel(i.classe);
+        document.getElementById("fTransfertClasse").value = "";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalTransfert")).show();
+      }
+
+      document.getElementById("btnConfirmTransfert").addEventListener("click", async () => {
+        if (!transfertTarget) return;
+        const nouvelleClasseId = document.getElementById("fTransfertClasse").value;
+        if (!nouvelleClasseId) {
+          showToast("Veuillez sélectionner une classe.", "error");
+          return;
+        }
+        const btn = document.getElementById("btnConfirmTransfert");
+        btn.disabled = true;
+        try {
+          await apiCall(`/inscriptions/${transfertTarget.id}/transfert`, {
+            method: "PUT",
+            body: JSON.stringify({ classe_id: Number(nouvelleClasseId) })
+          });
+          showToast("Élève transféré avec succès.");
+          bootstrap.Modal.getInstance(document.getElementById("modalTransfert")).hide();
+          transfertTarget = null;
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Impossible de transférer l'élève.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         MODAL DÉTAIL ÉLÈVE
+      ───────────────────────────────────────── */
+      function openDetailModal(eleveId) {
+        const e = eleves.find((x) => x.id === eleveId);
+        if (!e) return;
+        currentDetailEleveId = eleveId;
+
+        const photoImg = document.getElementById("detailPhoto");
+        const placeholder = document.getElementById("detailAvatar");
+        if (e.photo_url) {
+          photoImg.src = `${API_BASE}/eleves/${e.id}/photo`;
+          photoImg.style.display = "block";
+          placeholder.style.display = "none";
+        } else {
+          photoImg.style.display = "none";
+          placeholder.style.display = "";
+          placeholder.textContent = initials(e.nom, e.prenom);
+        }
+
+        document.getElementById("detailNomComplet").textContent = fullName(e);
+        document.getElementById("detailMatricule").textContent = e.matricule || "—";
+        document.getElementById("detailDateNaissance").textContent = formatDate(e.date_naissance);
+        document.getElementById("detailLieuNaissance").textContent = e.lieu_naissance || "—";
+        document.getElementById("detailSexe").textContent = e.sexe === "M" ? "Masculin" : (e.sexe === "F" ? "Féminin" : "—");
+        document.getElementById("detailAdresse").textContent = e.adresse || "—";
+
+        const p = e.parent || {};
+        document.getElementById("detailParentNom").textContent = parentFullName(p) || "—";
+        document.getElementById("detailParentTelephone").textContent = p.telephone || "—";
+        document.getElementById("detailParentEmail").textContent = p.email || "—";
+        document.getElementById("detailParentProfession").textContent = p.profession || "—";
+        document.getElementById("detailParentAdresse").textContent = p.adresse || "—";
+
+        const historique = inscriptions
+          .filter((i) => i.eleve_id === eleveId)
+          .sort((a, b) => (b.annee_scolaire_id || 0) - (a.annee_scolaire_id || 0));
+
+        const tbody = document.querySelector("#detailHistoriqueTable tbody");
+        tbody.innerHTML = historique.length > 0
+          ? historique.map((i) => `
+              <tr>
+                <td>${escapeHtml(anneeLabel(i.annee_scolaire))}</td>
+                <td>${escapeHtml(classeLabel(i.classe))}</td>
+                <td><span class="badge ${statutBadgeClass(i.statut)}">${escapeHtml(statutLabel(i.statut))}</span></td>
+                <td>${formatDate(i.date_inscription)}</td>
+              </tr>`).join("")
+          : `<tr><td colspan="4" class="text-center text-muted py-3">Aucune inscription enregistrée</td></tr>`;
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalDetailEleve")).show();
+      }
+
+      document.getElementById("btnDetailEditEleve").addEventListener("click", () => {
+        if (!currentDetailEleveId) return;
+        bootstrap.Modal.getInstance(document.getElementById("modalDetailEleve"))?.hide();
+        openEditEleveModal(currentDetailEleveId);
+      });
+
+      document.getElementById("btnDetailDeleteEleve").addEventListener("click", () => {
+        if (!currentDetailEleveId) return;
+        bootstrap.Modal.getInstance(document.getElementById("modalDetailEleve"))?.hide();
+        openDeleteModal("eleve", currentDetailEleveId);
+      });
+
+      /* ─────────────────────────────────────────
+         SUPPRESSION
+      ───────────────────────────────────────── */
+      function openDeleteModal(type, id) {
+        deleteTarget = { type, id };
+        let message = "Supprimer cet élément ?";
+        if (type === "inscription") {
+          const i = inscriptions.find((x) => x.id === id);
+          if (i) message = `Supprimer l'inscription de « ${fullName(i.eleve || {})} » pour ${anneeLabel(i.annee_scolaire)} ?`;
+        } else if (type === "eleve") {
+          const e = eleves.find((x) => x.id === id);
+          if (e) message = `Supprimer l'élève « ${fullName(e)} » et toutes ses inscriptions liées ?`;
+        }
+        document.getElementById("deleteMessage").textContent = message;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("modalConfirmSuppression")).show();
+      }
+
+      document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
+        if (!deleteTarget) return;
+        const btn = document.getElementById("btnConfirmDelete");
+        btn.disabled = true;
+        try {
+          const path = deleteTarget.type === "eleve" ? `/eleves/${deleteTarget.id}` : `/inscriptions/${deleteTarget.id}`;
+          await apiCall(path, { method: "DELETE" });
+          showToast(deleteTarget.type === "eleve" ? "Élève supprimé avec succès." : "Inscription supprimée avec succès.");
+          bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression")).hide();
+          deleteTarget = null;
+          await loadAll();
+        } catch (err) {
+          showToast(err.message || "Impossible de supprimer cet élément.", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      /* ─────────────────────────────────────────
+         FILTRES
+      ───────────────────────────────────────── */
+      let searchDebounce = null;
+      document.getElementById("filterSearch").addEventListener("input", () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(renderTable, 200);
+      });
+      document.getElementById("filterClasse").addEventListener("change", renderTable);
+      document.getElementById("filterStatut").addEventListener("change", renderTable);
+      document.getElementById("filterSexe").addEventListener("change", renderTable);
+      document.getElementById("filterAnneeGlobal").addEventListener("change", () => {
+        renderStats();
+        renderTable();
+        try { renderCharts(); } catch (e) { console.error(e); }
+      });
+      document.getElementById("btnResetFilters").addEventListener("click", () => {
+        document.getElementById("filterSearch").value = "";
+        document.getElementById("filterClasse").value = "";
+        document.getElementById("filterStatut").value = "";
+        document.getElementById("filterSexe").value = "";
+        renderTable();
+      });
+
+      /* ─────────────────────────────────────────
+         ACTUALISATION / EXPORT
+      ───────────────────────────────────────── */
+      document.getElementById("btnRefresh").addEventListener("click", loadAll);
+
+      document.getElementById("btnExportCsv").addEventListener("click", () => {
+        const list = getFilteredInscriptions();
+        if (list.length === 0) {
+          showToast("Aucune donnée à exporter.", "error");
+          return;
+        }
+        const rows = [["Matricule", "Nom", "Prénom", "Classe", "Année scolaire", "Statut", "Redoublant", "Date d'inscription"]];
+        list.forEach((i) => {
+          const e = i.eleve || {};
+          rows.push([
+            e.matricule || "", e.nom || "", e.prenom || "",
+            classeLabel(i.classe), anneeLabel(i.annee_scolaire),
+            statutLabel(i.statut), i.redoublant ? "Oui" : "Non",
+            i.date_inscription || ""
+          ]);
+        });
+        const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "inscriptions.csv";
+        link.click();
+      });
+
+      /* ─────────────────────────────────────────
+         INIT
+      ───────────────────────────────────────── */
+      function init() {
+        document.getElementById("modalEleve").addEventListener("hidden.bs.modal", resetFormEleve);
+        document.getElementById("modalInscription").addEventListener("hidden.bs.modal", resetFormInscription);
+        loadAll();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>
