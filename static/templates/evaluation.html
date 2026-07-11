@@ -317,6 +317,43 @@
 
           <!-- ─────────── ONGLET 1 : SAISIE DES NOTES ─────────── -->
           <div class="tab-pane fade show active" id="pane-notes" role="tabpanel">
+
+            <!-- Graphiques : notes -->
+            <div class="row g-3 mb-3">
+              <div class="col-lg-5">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition des notes
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartNotesRepartition" height="220"></canvas>
+                    <div id="chartNotesRepartitionEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune note saisie pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-7">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Moyenne de classe par matière
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartMoyenneMatiere" height="220"></canvas>
+                    <div id="chartMoyenneMatiereEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune note saisie pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-header">
                 <h2 class="card-title">
@@ -348,6 +385,44 @@
 
           <!-- ─────────── ONGLET 2 : DISCIPLINE ─────────── -->
           <div class="tab-pane fade" id="pane-discipline" role="tabpanel">
+
+            <!-- Graphiques : discipline -->
+            <div class="row g-3 mb-3">
+              <div class="col-lg-5">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition des incidents
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartDisciplineRepartition" height="220"></canvas>
+                    <div id="chartDisciplineRepartitionEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucun enregistrement pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-7">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Élèves les plus concernés
+                    </h2>
+                    <span class="badge badge-primary">Top 8</span>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartDisciplineEleves" height="220"></canvas>
+                    <div id="chartDisciplineElevesEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucun incident enregistré pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-header">
                 <h2 class="card-title">
@@ -392,6 +467,43 @@
 
           <!-- ─────────── ONGLET 3 : MOYENNES ─────────── -->
           <div class="tab-pane fade" id="pane-moyennes" role="tabpanel">
+
+            <!-- Graphiques : moyennes -->
+            <div class="row g-3 mb-3">
+              <div class="col-lg-5">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition des appréciations
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartAppreciations" height="220"></canvas>
+                    <div id="chartAppreciationsEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-7">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Classement des moyennes
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartClassement" height="220"></canvas>
+                    <div id="chartClassementEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-header">
                 <h2 class="card-title">
@@ -497,6 +609,8 @@
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
   <!-- Sidebar du projet -->
   <script>
     window.GESTIONNAIRE_USER = {
@@ -552,6 +666,33 @@
         notesIndex: {},       // clé "inscriptionId|matiereClasseId" -> note
         disciplineIndex: {}   // clé inscriptionId -> discipline
       };
+
+      /* ═══════════════════════════════════════
+         GRAPHIQUES (Chart.js) — instances partagées
+      ═══════════════════════════════════════ */
+      let chartNotesRepartition = null;
+      let chartMoyenneMatiere = null;
+      let chartDisciplineRepartition = null;
+      let chartDisciplineEleves = null;
+      let chartAppreciations = null;
+      let chartClassement = null;
+
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      const PALETTE = () => [
+        cssVar("--ta-primary"), cssVar("--ta-success"), cssVar("--ta-warning"),
+        cssVar("--ta-info"), cssVar("--ta-danger"), "#8B5CF6", "#F97316", "#0EA5E9"
+      ];
+
+      function toggleChartEmpty(canvasId, emptyId, isEmpty) {
+        const canvas = document.getElementById(canvasId);
+        const empty = document.getElementById(emptyId);
+        if (!canvas || !empty) return;
+        canvas.style.display = isEmpty ? "none" : "block";
+        empty.style.display = isEmpty ? "block" : "none";
+      }
 
       /* ═══════════════════════════════════════
          HELPERS API
@@ -823,6 +964,132 @@
         const classeNom = (state.classes.find(c => c.id == state.classeActiveId) || {}).libelle;
         updateGridTitles(classeNom);
         updateStatsNotes();
+        try { renderChartsNotes(); } catch (chartErr) { console.error("Erreur graphiques notes:", chartErr); }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES : onglet Notes
+      ───────────────────────────────────────── */
+      function renderChartsNotes() {
+        renderChartNotesRepartition();
+        renderChartMoyenneMatiere();
+      }
+
+      function renderChartNotesRepartition() {
+        const ctx = document.getElementById("chartNotesRepartition");
+        if (!ctx) return;
+
+        const tranches = [
+          { label: "0 – 8", min: 0, max: 8, count: 0 },
+          { label: "8 – 10", min: 8, max: 10, count: 0 },
+          { label: "10 – 14", min: 10, max: 14, count: 0 },
+          { label: "14 – 20", min: 14, max: 20.01, count: 0 }
+        ];
+        let total = 0;
+        Object.values(state.notesIndex).forEach(n => {
+          if (n.absent || n.valeur === null || n.valeur === undefined) return;
+          const v = Number(n.valeur);
+          const tranche = tranches.find(t => v >= t.min && v < t.max);
+          if (tranche) { tranche.count += 1; total += 1; }
+        });
+
+        if (chartNotesRepartition) chartNotesRepartition.destroy();
+
+        if (total === 0) {
+          toggleChartEmpty("chartNotesRepartition", "chartNotesRepartitionEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartNotesRepartition", "chartNotesRepartitionEmpty", false);
+
+        chartNotesRepartition = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: tranches.map(t => t.label),
+            datasets: [{
+              data: tranches.map(t => t.count),
+              backgroundColor: [cssVar("--ta-danger"), cssVar("--ta-warning"), cssVar("--ta-info"), cssVar("--ta-success")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label} : ${c.raw} note(s)`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartMoyenneMatiere() {
+        const ctx = document.getElementById("chartMoyenneMatiere");
+        if (!ctx) return;
+
+        const data = state.matieresClasse.map(mc => {
+          const valeurs = state.roster
+            .map(insc => state.notesIndex[`${insc.id}|${mc.id}`])
+            .filter(n => n && !n.absent && n.valeur !== null && n.valeur !== undefined)
+            .map(n => Number(n.valeur));
+          const moyenne = valeurs.length ? valeurs.reduce((a, b) => a + b, 0) / valeurs.length : null;
+          return { label: getMatiereNom(mc), moyenne };
+        }).filter(m => m.moyenne !== null);
+
+        if (chartMoyenneMatiere) chartMoyenneMatiere.destroy();
+
+        if (data.length === 0) {
+          toggleChartEmpty("chartMoyenneMatiere", "chartMoyenneMatiereEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartMoyenneMatiere", "chartMoyenneMatiereEmpty", false);
+
+        chartMoyenneMatiere = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: data.map(d => d.label),
+            datasets: [{
+              label: "Moyenne de classe",
+              data: data.map(d => Number(d.moyenne.toFixed(2))),
+              backgroundColor: data.map(d => d.moyenne >= 10 ? cssVar("--ta-success") : cssVar("--ta-danger")),
+              borderRadius: 4,
+              maxBarThickness: 30
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` Moyenne : ${c.raw}/20`
+                }
+              }
+            },
+            scales: {
+              x: {
+                min: 0,
+                max: 20,
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              },
+              y: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
       }
 
       function renderGrilleNotesHead(thead) {
@@ -1055,6 +1322,123 @@
         renderGrilleDiscipline(tbody);
         document.getElementById("disciplineGridCount").textContent = `${Object.keys(state.disciplineIndex).length} enregistrement(s)`;
         updateStatsDiscipline();
+        try { renderChartsDiscipline(); } catch (chartErr) { console.error("Erreur graphiques discipline:", chartErr); }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES : onglet Discipline
+      ───────────────────────────────────────── */
+      function renderChartsDiscipline() {
+        renderChartDisciplineRepartition();
+        renderChartDisciplineEleves();
+      }
+
+      function renderChartDisciplineRepartition() {
+        const ctx = document.getElementById("chartDisciplineRepartition");
+        if (!ctx) return;
+
+        const vals = Object.values(state.disciplineIndex);
+        const j = vals.reduce((a, d) => a + (d.absences_justifiees || 0), 0);
+        const nj = vals.reduce((a, d) => a + (d.absences_non_justifiees || 0), 0);
+        const r = vals.reduce((a, d) => a + (d.retards || 0), 0);
+        const ex = vals.reduce((a, d) => a + (d.exclusions || 0), 0);
+        const total = j + nj + r + ex;
+
+        if (chartDisciplineRepartition) chartDisciplineRepartition.destroy();
+
+        if (total === 0) {
+          toggleChartEmpty("chartDisciplineRepartition", "chartDisciplineRepartitionEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartDisciplineRepartition", "chartDisciplineRepartitionEmpty", false);
+
+        chartDisciplineRepartition = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Abs. justifiées", "Abs. injustifiées", "Retards", "Exclusions"],
+            datasets: [{
+              data: [j, nj, r, ex],
+              backgroundColor: [cssVar("--ta-info"), cssVar("--ta-danger"), cssVar("--ta-warning"), "#8B5CF6"],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label} : ${c.raw}`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartDisciplineEleves() {
+        const ctx = document.getElementById("chartDisciplineEleves");
+        if (!ctx) return;
+
+        const counts = rosterTriee().map(insc => {
+          const d = state.disciplineIndex[insc.id] || {};
+          const total = (d.absences_justifiees || 0) + (d.absences_non_justifiees || 0) + (d.retards || 0) + (d.exclusions || 0);
+          return { nom: eleveNomComplet(insc), total };
+        }).filter(x => x.total > 0)
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 8);
+
+        if (chartDisciplineEleves) chartDisciplineEleves.destroy();
+
+        if (counts.length === 0) {
+          toggleChartEmpty("chartDisciplineEleves", "chartDisciplineElevesEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartDisciplineEleves", "chartDisciplineElevesEmpty", false);
+
+        chartDisciplineEleves = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: counts.map(c => c.nom),
+            datasets: [{
+              label: "Incidents cumulés",
+              data: counts.map(c => c.total),
+              backgroundColor: cssVar("--ta-danger"),
+              borderRadius: 4,
+              maxBarThickness: 26
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.raw} incident(s)`
+                }
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              },
+              y: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
       }
 
       function renderGrilleDiscipline(tbody) {
@@ -1222,6 +1606,116 @@
         const classeNom = (state.classes.find(c => c.id == state.classeActiveId) || {}).libelle;
         updateGridTitles(classeNom);
         updateStatsMoyennes(moyennes);
+        try { renderChartsMoyennes(moyennes); } catch (chartErr) { console.error("Erreur graphiques moyennes:", chartErr); }
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUES : onglet Moyennes
+      ───────────────────────────────────────── */
+      function renderChartsMoyennes(moyennes) {
+        renderChartAppreciations(moyennes);
+        renderChartClassement(moyennes);
+      }
+
+      function renderChartAppreciations(moyennes) {
+        const ctx = document.getElementById("chartAppreciations");
+        if (!ctx) return;
+
+        const vals = moyennes.map(m => m.moyenne).filter(v => v !== null);
+        const admis = vals.filter(v => v >= 10).length;
+        const aSurveiller = vals.filter(v => v >= 8 && v < 10).length;
+        const insuffisant = vals.filter(v => v < 8).length;
+
+        if (chartAppreciations) chartAppreciations.destroy();
+
+        if (vals.length === 0) {
+          toggleChartEmpty("chartAppreciations", "chartAppreciationsEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartAppreciations", "chartAppreciationsEmpty", false);
+
+        chartAppreciations = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Admis", "À surveiller", "Insuffisant"],
+            datasets: [{
+              data: [admis, aSurveiller, insuffisant],
+              backgroundColor: [cssVar("--ta-success"), cssVar("--ta-warning"), cssVar("--ta-danger")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` ${c.label} : ${c.raw} élève(s)`
+                }
+              }
+            },
+            cutout: "62%"
+          }
+        });
+      }
+
+      function renderChartClassement(moyennes) {
+        const ctx = document.getElementById("chartClassement");
+        if (!ctx) return;
+
+        const data = moyennes.filter(m => m.moyenne !== null);
+
+        if (chartClassement) chartClassement.destroy();
+
+        if (data.length === 0) {
+          toggleChartEmpty("chartClassement", "chartClassementEmpty", true);
+          return;
+        }
+        toggleChartEmpty("chartClassement", "chartClassementEmpty", false);
+
+        chartClassement = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: data.map(m => eleveNomComplet(m.inscription)),
+            datasets: [{
+              label: "Moyenne pondérée",
+              data: data.map(m => Number(m.moyenne.toFixed(2))),
+              backgroundColor: data.map(m => m.moyenne >= 10 ? cssVar("--ta-success") : (m.moyenne >= 8 ? cssVar("--ta-warning") : cssVar("--ta-danger"))),
+              borderRadius: 4,
+              maxBarThickness: 22
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => ` Moyenne : ${c.raw}/20`
+                }
+              }
+            },
+            scales: {
+              x: {
+                min: 0,
+                max: 20,
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } },
+                grid: { color: cssVar("--ta-border-light") }
+              },
+              y: {
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 10 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
       }
 
       /* ═══════════════════════════════════════

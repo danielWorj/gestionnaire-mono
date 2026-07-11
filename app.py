@@ -61,7 +61,7 @@ def create_app(config_name=None):
         }
 
     # Routes pour servir les pages HTML (templates)
-    @app.route('/')
+    
     @app.route('/config')
     def config_page():
         return render_template('config.html')
@@ -73,6 +73,7 @@ def create_app(config_name=None):
     @app.route('/matiere')
     def matiere_page():
         return render_template('matiere.html')
+    
     @app.route('/horaire')
     def horaire_page():
         return render_template('horaire.html')
@@ -85,6 +86,13 @@ def create_app(config_name=None):
     @app.route('/paiements')
     def paiements_page():
         return render_template('paiements.html')
+    @app.route('/parent')
+    def parent_page():
+        return render_template('parent.html')
+    @app.route('/')
+    @app.route('/index')
+    def index_page():
+        return render_template('index.html')
 
     # Créer les tables
     with app.app_context():

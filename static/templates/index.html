@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tableau de bord — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+  <!-- ═══════════════════════════════════════════════
+       Styles spécifiques à la page Tableau de bord
+       Repose entièrement sur les variables --ta-* de style.css
+  ═══════════════════════════════════════════════ -->
+  <style>
+    .welcome-banner {
+      background: linear-gradient(135deg, var(--ta-primary) 0%, #5B6EF5 100%);
+      border-radius: var(--ta-radius-lg);
+      padding: 24px 28px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .welcome-banner h1 { color: #fff; font-size: 1.3rem; margin-bottom: 4px; }
+    .welcome-banner p { color: rgba(255,255,255,.85); margin-bottom: 0; font-size: 12px; }
+    .welcome-banner .banner-date {
+      background: rgba(255,255,255,.15);
+      border-radius: var(--ta-radius);
+      padding: 8px 14px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .quick-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--ta-border);
+      border-radius: var(--ta-radius);
+      background: var(--ta-white);
+      text-decoration: none;
+      color: var(--ta-text);
+      transition: box-shadow var(--ta-transition), transform var(--ta-transition), border-color var(--ta-transition);
+      height: 100%;
+    }
+    .quick-link:hover {
+      box-shadow: var(--ta-shadow);
+      border-color: var(--ta-primary);
+      color: var(--ta-text);
+      transform: translateY(-1px);
+    }
+    .quick-link .quick-icon {
+      width: 38px; height: 38px; border-radius: var(--ta-radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+      background: var(--ta-primary-light); color: var(--ta-primary);
+    }
+    .quick-link .quick-title { font-size: 12.5px; font-weight: 600; color: var(--ta-text); }
+    .quick-link .quick-sub { font-size: 10.5px; color: var(--ta-text-light); }
+
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--ta-border-light);
+    }
+    .activity-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .activity-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--ta-primary-light); color: var(--ta-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .activity-name { font-size: 12px; font-weight: 600; color: var(--ta-text); }
+    .activity-sub { font-size: 10.5px; color: var(--ta-text-light); }
+
+    .grid-loading, .grid-empty {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 40px; color: var(--ta-text-light); font-size: 13px;
+    }
+
+    .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  </style>
+</head>
+<body data-page="dashboard">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content" data-page="dashboard">
+
+        <!-- ═══════════════════════════════════════════════
+             BANDEAU DE BIENVENUE
+        ═══════════════════════════════════════════════ -->
+        <div class="welcome-banner mb-4">
+          <div>
+            <h1><i class="fa-solid fa-graduation-cap me-2"></i>Bienvenue, <span id="welcomeUserName">—</span></h1>
+            <p>Voici un aperçu global de votre établissement pour l'année scolaire <strong id="welcomeAnnee">—</strong>.</p>
+          </div>
+          <div class="banner-date">
+            <i class="fa-regular fa-calendar me-1"></i><span id="todayDate">—</span>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4" id="statsRow">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-user-graduate"></i></div>
+              <div class="stat-label">Élèves inscrits</div>
+              <div class="stat-value" id="statEleves">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statElevesChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-user-tie"></i></div>
+              <div class="stat-label">Enseignants</div>
+              <div class="stat-value" id="statEnseignants">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statEnseignantsChange">Corps professoral</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon info"><i class="fa-solid fa-chalkboard"></i></div>
+              <div class="stat-label">Classes actives</div>
+              <div class="stat-value" id="statClasses">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statClassesChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon warning"><i class="fa-solid fa-money-bill-wave"></i></div>
+              <div class="stat-label">Recouvrement paiements</div>
+              <div class="stat-value" id="statRecouvrement">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statRecouvrementChange">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES — RÉPARTITION
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-column me-2 text-primary"></i>Effectifs par classe
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartClasses" height="230"></canvas>
+                <div id="chartClassesEmpty" class="grid-empty" style="display:none;">Aucune donnée disponible</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition par sexe
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartSexe" height="230"></canvas>
+                <div id="chartSexeEmpty" class="grid-empty" style="display:none;">Aucune donnée disponible</div>
+                <div class="d-flex justify-content-center gap-4 mt-3" style="font-size:11.5px;">
+                  <div><span class="legend-dot" style="background:var(--ta-primary);"></span>Garçons — <strong id="legendGarcons">0</strong></div>
+                  <div><span class="legend-dot" style="background:#F97316;"></span>Filles — <strong id="legendFilles">0</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             PAIEMENTS + DERNIÈRES INSCRIPTIONS
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-sack-dollar me-2 text-primary"></i>Suivi des encaissements
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartPaiements" height="230"></canvas>
+                <div id="chartPaiementsEmpty" class="grid-empty" style="display:none;">Aucune tranche configurée</div>
+                <div class="d-flex justify-content-center gap-4 mt-3" style="font-size:11.5px;">
+                  <div><span class="legend-dot" style="background:var(--ta-success);"></span>Encaissé — <strong id="legendEncaisse">—</strong></div>
+                  <div><span class="legend-dot" style="background:var(--ta-border);"></span>Restant — <strong id="legendRestant">—</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-user-plus me-2 text-primary"></i>Dernières inscriptions
+                </h2>
+                <a href="/inscription" class="btn btn-light btn-sm">
+                  Voir tout <i class="fa-solid fa-arrow-right ms-1"></i>
+                </a>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Élève</th>
+                        <th>Classe</th>
+                        <th>Statut</th>
+                        <th class="text-end">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyRecentInscriptions">
+                      <tr><td colspan="4" class="text-center text-muted py-4">Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             ACCÈS RAPIDES
+        ═══════════════════════════════════════════════ -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <i class="fa-solid fa-bolt me-2 text-primary"></i>Accès rapides
+            </h2>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-sm-6 col-lg-3">
+                <a href="/config" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-chalkboard"></i></div>
+                  <div>
+                    <div class="quick-title">Configuration</div>
+                    <div class="quick-sub">Années, classes, cycles</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/enseignant" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-user-tie"></i></div>
+                  <div>
+                    <div class="quick-title">Enseignants</div>
+                    <div class="quick-sub">Corps professoral</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/matiere" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-book-open"></i></div>
+                  <div>
+                    <div class="quick-title">Matières</div>
+                    <div class="quick-sub">Programmes & coefficients</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/horaire" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-clock"></i></div>
+                  <div>
+                    <div class="quick-title">Horaires</div>
+                    <div class="quick-sub">Emploi du temps</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/inscription" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-user-plus"></i></div>
+                  <div>
+                    <div class="quick-title">Inscriptions</div>
+                    <div class="quick-sub">Élèves & scolarité</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/evaluation" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+                  <div>
+                    <div class="quick-title">Évaluations</div>
+                    <div class="quick-sub">Notes & discipline</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/paiements" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
+                  <div>
+                    <div class="quick-title">Paiements</div>
+                    <div class="quick-sub">Tranches & situation</div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <a href="/parent" class="quick-link">
+                  <div class="quick-icon"><i class="fa-solid fa-people-roof"></i></div>
+                  <div>
+                    <div class="quick-title">Parents</div>
+                    <div class="quick-sub">Tuteurs & contacts</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "{{ current_user.nom if current_user is defined else 'Utilisateur' }}",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page Tableau de bord -->
+  <script>
+    (function () {
+      "use strict";
+
+      const STRUCTURE_API   = "/api/structure";
+      const INSCRIPTION_API = "/api/inscription";
+      const PEDAGOGIE_API   = "/api/pedagogie";
+      const PAIEMENTS_API   = "/api/paiements";
+
+      const state = {
+        annees: [],
+        anneeActiveId: null,
+        classes: [],
+        eleves: [],
+        inscriptions: [],
+        enseignants: [],
+        tranches: [],
+        tranchesTotals: {}
+      };
+
+      let chartClasses = null;
+      let chartSexe = null;
+      let chartPaiements = null;
+
+      /* ─────────────────────────────────────────
+         HELPERS
+      ───────────────────────────────────────── */
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function escapeHtml(str) {
+        return (str || "").toString()
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function initials(nom, prenom) {
+        const a = (prenom || "").trim().charAt(0).toUpperCase();
+        const b = (nom || "").trim().charAt(0).toUpperCase();
+        return (a + b) || "?";
+      }
+
+      function fullName(e) {
+        return `${e.prenom || ""} ${e.nom || ""}`.trim() || "Élève";
+      }
+
+      function classeLabel(c) {
+        if (!c) return "—";
+        return c.libelle || c.nom || `Classe #${c.id}`;
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+      }
+
+      function formatMontant(v) {
+        const n = Number(v || 0);
+        return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " FCFA";
+      }
+
+      function statutBadgeClass(statut) {
+        switch (statut) {
+          case "Inscrit": return "badge-success";
+          case "Redoublant": return "badge-warning";
+          case "Transfere": return "badge-info";
+          case "Abandon": return "badge-danger";
+          default: return "badge-neutral";
+        }
+      }
+
+      function statutLabel(statut) {
+        return statut === "Transfere" ? "Transféré" : (statut || "—");
+      }
+
+      async function apiGet(base, path) {
+        const res = await fetch(`${base}${path}`, { headers: { "Content-Type": "application/json" } });
+        let json;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.success === false) {
+          throw new Error(json.error || `Erreur ${res.status}`);
+        }
+        return json.data || [];
+      }
+
+      /* ─────────────────────────────────────────
+         EN-TÊTE
+      ───────────────────────────────────────── */
+      function renderHeader() {
+        document.getElementById("welcomeUserName").textContent =
+          (window.GESTIONNAIRE_USER && window.GESTIONNAIRE_USER.nom) || "Utilisateur";
+        document.getElementById("todayDate").textContent =
+          new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT — ANNÉES SCOLAIRES
+      ───────────────────────────────────────── */
+      async function loadAnnees() {
+        try {
+          state.annees = await apiGet(STRUCTURE_API, "/annees-scolaires");
+          const active = state.annees.find((a) => a.active) || state.annees[0];
+          state.anneeActiveId = active ? active.id : null;
+          document.getElementById("welcomeAnnee").textContent = active ? (active.libelle || "—") : "—";
+        } catch (e) {
+          document.getElementById("welcomeAnnee").textContent = "—";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT — CLASSES
+      ───────────────────────────────────────── */
+      async function loadClasses() {
+        try {
+          state.classes = await apiGet(STRUCTURE_API, "/classes");
+          document.getElementById("statClasses").textContent = state.classes.length;
+          document.getElementById("statClassesChange").textContent =
+            state.classes.length > 0 ? "Toutes classes confondues" : "Aucune classe";
+        } catch (e) {
+          document.getElementById("statClasses").textContent = "—";
+          document.getElementById("statClassesChange").textContent = "Indisponible";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT — ENSEIGNANTS
+      ───────────────────────────────────────── */
+      async function loadEnseignants() {
+        try {
+          state.enseignants = await apiGet(PEDAGOGIE_API, "/enseignants");
+          document.getElementById("statEnseignants").textContent = state.enseignants.length;
+        } catch (e) {
+          document.getElementById("statEnseignants").textContent = "—";
+          document.getElementById("statEnseignantsChange").textContent = "Indisponible";
+        }
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT — ÉLÈVES & INSCRIPTIONS
+      ───────────────────────────────────────── */
+      async function loadEleves() {
+        try {
+          const [eleves, inscriptions] = await Promise.all([
+            apiGet(INSCRIPTION_API, "/eleves"),
+            apiGet(INSCRIPTION_API, "/inscriptions")
+          ]);
+          state.eleves = eleves;
+          state.inscriptions = inscriptions;
+
+          document.getElementById("statEleves").textContent = eleves.length;
+          const inscrAnnee = state.anneeActiveId
+            ? inscriptions.filter((i) => i.annee_scolaire_id === state.anneeActiveId)
+            : inscriptions;
+          document.getElementById("statElevesChange").textContent =
+            `${inscrAnnee.length} inscrit(s) cette année`;
+
+          renderRecentInscriptions();
+          renderChartClasses();
+          renderChartSexe();
+        } catch (e) {
+          document.getElementById("statEleves").textContent = "—";
+          document.getElementById("statElevesChange").textContent = "Indisponible";
+          document.getElementById("tbodyRecentInscriptions").innerHTML =
+            `<tr><td colspan="4" class="text-center text-muted py-4">Données indisponibles</td></tr>`;
+          showChartEmpty("chartClasses");
+          showChartEmpty("chartSexe");
+        }
+      }
+
+      function showChartEmpty(id) {
+        const canvas = document.getElementById(id);
+        const empty = document.getElementById(id + "Empty");
+        if (canvas) canvas.style.display = "none";
+        if (empty) empty.style.display = "flex";
+      }
+
+      /* ─────────────────────────────────────────
+         DERNIÈRES INSCRIPTIONS
+      ───────────────────────────────────────── */
+      function renderRecentInscriptions() {
+        const tbody = document.getElementById("tbodyRecentInscriptions");
+        const sorted = [...state.inscriptions].sort((a, b) => {
+          const da = a.date_inscription ? new Date(a.date_inscription).getTime() : 0;
+          const db = b.date_inscription ? new Date(b.date_inscription).getTime() : 0;
+          return db - da;
+        }).slice(0, 6);
+
+        if (!sorted.length) {
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Aucune inscription récente</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = sorted.map((i) => {
+          const e = i.eleve || {};
+          return `
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="activity-avatar">${escapeHtml(initials(e.nom, e.prenom))}</div>
+                  <div>
+                    <div class="activity-name">${escapeHtml(fullName(e))}</div>
+                    <div class="activity-sub">${escapeHtml(e.matricule || "—")}</div>
+                  </div>
+                </div>
+              </td>
+              <td>${escapeHtml(classeLabel(i.classe))}</td>
+              <td><span class="badge ${statutBadgeClass(i.statut)}">${escapeHtml(statutLabel(i.statut))}</span></td>
+              <td class="text-end">${formatDate(i.date_inscription)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUE — EFFECTIFS PAR CLASSE
+      ───────────────────────────────────────── */
+      function renderChartClasses() {
+        const ctx = document.getElementById("chartClasses");
+        const emptyEl = document.getElementById("chartClassesEmpty");
+
+        const counts = {};
+        state.inscriptions.forEach((i) => {
+          const label = classeLabel(i.classe);
+          counts[label] = (counts[label] || 0) + 1;
+        });
+
+        let entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        if (!entries.length && state.classes.length) {
+          entries = state.classes
+            .map((c) => [classeLabel(c), Number(c.effectif) || 0])
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+        }
+
+        if (!entries.length) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "flex";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        if (chartClasses) chartClasses.destroy();
+        chartClasses = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: entries.map((e) => e[0]),
+            datasets: [{
+              label: "Élèves",
+              data: entries.map((e) => e[1]),
+              backgroundColor: cssVar("--ta-primary"),
+              borderRadius: 4,
+              maxBarThickness: 34
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: cssVar("--ta-border-light") } },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         GRAPHIQUE — RÉPARTITION PAR SEXE
+      ───────────────────────────────────────── */
+      function renderChartSexe() {
+        const ctx = document.getElementById("chartSexe");
+        const emptyEl = document.getElementById("chartSexeEmpty");
+
+        const nbGarcons = state.eleves.filter((e) => e.sexe === "M").length;
+        const nbFilles = state.eleves.filter((e) => e.sexe === "F").length;
+        const total = nbGarcons + nbFilles;
+
+        document.getElementById("legendGarcons").textContent = nbGarcons;
+        document.getElementById("legendFilles").textContent = nbFilles;
+
+        if (!total) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "flex";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        if (chartSexe) chartSexe.destroy();
+        chartSexe = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Garçons", "Filles"],
+            datasets: [{
+              data: [nbGarcons, nbFilles],
+              backgroundColor: [cssVar("--ta-primary"), "#F97316"],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "68%",
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         CHARGEMENT — PAIEMENTS (RECOUVREMENT)
+      ───────────────────────────────────────── */
+      async function loadPaiements() {
+        if (!state.anneeActiveId) {
+          showChartEmpty("chartPaiements");
+          document.getElementById("statRecouvrement").textContent = "—";
+          document.getElementById("statRecouvrementChange").textContent = "Année indisponible";
+          return;
+        }
+        try {
+          state.tranches = await apiGet(PAIEMENTS_API, `/annees/${state.anneeActiveId}/tranches`);
+          await Promise.all(state.tranches.map(async (t) => {
+            try {
+              const res = await fetch(`${PAIEMENTS_API}/tranches/${t.id}/total-verse`, {
+                headers: { "Content-Type": "application/json" }
+              });
+              const json = await res.json();
+              state.tranchesTotals[t.id] = (json.data && json.data.total_verse) || 0;
+            } catch (e) {
+              state.tranchesTotals[t.id] = 0;
+            }
+          }));
+          renderPaiements();
+        } catch (e) {
+          showChartEmpty("chartPaiements");
+          document.getElementById("statRecouvrement").textContent = "—";
+          document.getElementById("statRecouvrementChange").textContent = "Indisponible";
+        }
+      }
+
+      function renderPaiements() {
+        const totalAttendu = state.tranches.reduce((sum, t) => sum + Number(t.montant_attendu || 0), 0);
+        const totalVerse = state.tranches.reduce((sum, t) => sum + Number(state.tranchesTotals[t.id] || 0), 0);
+        const restant = Math.max(totalAttendu - totalVerse, 0);
+        const taux = totalAttendu > 0 ? Math.round((totalVerse / totalAttendu) * 100) : 0;
+
+        document.getElementById("statRecouvrement").textContent = totalAttendu > 0 ? `${taux}%` : "—";
+        document.getElementById("statRecouvrementChange").textContent =
+          totalAttendu > 0 ? `${formatMontant(totalVerse)} encaissés` : "Aucune tranche";
+        document.getElementById("legendEncaisse").textContent = formatMontant(totalVerse);
+        document.getElementById("legendRestant").textContent = formatMontant(restant);
+
+        const ctx = document.getElementById("chartPaiements");
+        const emptyEl = document.getElementById("chartPaiementsEmpty");
+
+        if (!totalAttendu) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "flex";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        if (chartPaiements) chartPaiements.destroy();
+        chartPaiements = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Encaissé", "Restant"],
+            datasets: [{
+              data: [totalVerse, restant],
+              backgroundColor: [cssVar("--ta-success"), cssVar("--ta-border")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "68%",
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+
+      /* ─────────────────────────────────────────
+         INIT
+      ───────────────────────────────────────── */
+      async function init() {
+        renderHeader();
+        await loadAnnees();
+        await Promise.all([
+          loadClasses(),
+          loadEnseignants(),
+          loadEleves(),
+          loadPaiements()
+        ]);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paiements — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+  <!-- ═══════════════════════════════════════════════
+       Styles spécifiques à la page Paiements
+       Repose entièrement sur les variables --ta-* de style.css
+  ═══════════════════════════════════════════════ -->
+  <style>
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11px; font-weight: 600; color: var(--ta-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+    .badge-statut-solde   { background: var(--ta-success-light); color: var(--ta-success); }
+    .badge-statut-partiel { background: var(--ta-warning-light); color: var(--ta-warning); }
+    .badge-statut-impaye  { background: var(--ta-danger-light);  color: var(--ta-danger);  }
+
+    .tranche-card {
+      border: 1px solid var(--ta-border);
+      border-radius: var(--ta-radius);
+      padding: 14px 16px;
+      background: var(--ta-white);
+      transition: box-shadow .15s ease;
+    }
+    .tranche-card:hover { box-shadow: var(--ta-shadow); }
+    .tranche-card .tranche-libelle { font-weight: 700; font-size: 13px; color: var(--ta-text); }
+    .tranche-card .tranche-date { font-size: 10.5px; color: var(--ta-text-light); }
+    .tranche-card .tranche-montants { display: flex; justify-content: space-between; font-size: 11px; color: var(--ta-text-muted); margin-top: 8px; }
+    .tranche-card .tranche-actions { display: flex; gap: 4px; }
+
+    .grid-loading, .grid-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 40px; color: var(--ta-text-light); font-size: 13px; }
+
+    .solde-negatif { color: var(--ta-danger); font-weight: 700; }
+    .solde-positif { color: var(--ta-text-muted); }
+
+    .eleve-mini { display: flex; align-items: center; gap: 8px; }
+    .eleve-avatar-mini {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--ta-primary-light);
+      color: var(--ta-primary); display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+
+    @media (max-width: 575.98px) {
+      .filter-bar { gap: 10px; }
+    }
+  </style>
+</head>
+<body data-page="paiements">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Paiements</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Paiements</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Suivez les tranches de paiement, les versements des élèves et leur situation financière.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnExportCsv">
+              <i class="fa-solid fa-file-export"></i> Exporter
+            </button>
+            <button class="btn btn-primary btn-sm" type="button" id="btnNouveauPaiement" data-bs-toggle="modal" data-bs-target="#modalPaiement">
+              <i class="fa-solid fa-plus"></i> Enregistrer un paiement
+            </button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRE ANNÉE SCOLAIRE
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="filter-bar">
+              <div class="filter-group">
+                <label for="filterAnnee">Année scolaire</label>
+                <select class="form-select form-select-sm" id="filterAnnee" style="min-width:180px;">
+                  <option value="">Chargement…</option>
+                </select>
+              </div>
+              <div class="filter-group flex-grow-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES (année scolaire active)
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-sack-dollar"></i></div>
+              <div class="stat-label">Montant attendu</div>
+              <div class="stat-value" id="statAttendu">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statAttenduChange">Toutes tranches</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+              <div class="stat-label">Montant versé</div>
+              <div class="stat-value" id="statVerse">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statVerseChange">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon danger"><i class="fa-solid fa-triangle-exclamation"></i></div>
+              <div class="stat-label">Solde restant</div>
+              <div class="stat-value" id="statSolde">—</div>
+              <div class="stat-change down"><i class="fa-solid fa-minus"></i> <span id="statSoldeChange">À recouvrer</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon info"><i class="fa-solid fa-percent"></i></div>
+              <div class="stat-label">Taux de recouvrement</div>
+              <div class="stat-value" id="statTaux">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-arrow-up"></i> <span id="statTauxChange">Sur l'année active</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Versé vs solde restant
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartRecouvrement" height="230"></canvas>
+                <div id="chartRecouvrementEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune donnée disponible</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Attendu vs versé par tranche
+                </h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartTranches" height="230"></canvas>
+                <div id="chartTranchesEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune tranche définie pour cette année</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             ONGLETS PRINCIPAUX
+        ═══════════════════════════════════════════════ -->
+        <ul class="nav nav-tabs mb-3" id="paiementsTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-tranches" data-bs-toggle="tab"
+                    data-bs-target="#pane-tranches" type="button" role="tab">
+              <i class="fa-solid fa-layer-group me-1"></i>Tranches de paiement
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-paiements" data-bs-toggle="tab"
+                    data-bs-target="#pane-paiements" type="button" role="tab">
+              <i class="fa-solid fa-receipt me-1"></i>Paiements enregistrés
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-situation" data-bs-toggle="tab"
+                    data-bs-target="#pane-situation" type="button" role="tab">
+              <i class="fa-solid fa-user-clock me-1"></i>Situation d'un élève
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="paiementsTabsContent">
+
+          <!-- ─────────── ONGLET 1 : TRANCHES ─────────── -->
+          <div class="tab-pane fade show active" id="pane-tranches" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-layer-group me-2 text-primary"></i>Tranches de l'année
+                  <span class="badge badge-primary ms-2" id="tranchesCount">0</span>
+                </h2>
+                <button class="btn btn-primary btn-sm" id="btnNouvelleTranche" data-bs-toggle="modal" data-bs-target="#modalTranche">
+                  <i class="fa-solid fa-plus"></i> Nouvelle tranche
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="row g-3" id="tranchesGrid">
+                  <div class="col-12 grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement des tranches…</div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Le solde de chaque tranche est calculé à partir de tous les paiements enregistrés pour cette tranche.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 2 : PAIEMENTS ─────────── -->
+          <div class="tab-pane fade" id="pane-paiements" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-receipt me-2 text-primary"></i>Historique des paiements
+                  <span class="badge badge-primary ms-2" id="paiementsCount">0</span>
+                </h2>
+                <div class="filter-group" style="min-width:200px;">
+                  <select class="form-select form-select-sm" id="filterTranchePaiements">
+                    <option value="">Toutes les tranches</option>
+                  </select>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" id="tablePaiements">
+                    <thead>
+                      <tr>
+                        <th>Élève</th>
+                        <th>Tranche</th>
+                        <th>Montant versé</th>
+                        <th>Date</th>
+                        <th>Mode</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Cliquez sur "Enregistrer un paiement" pour ajouter un nouveau versement.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 3 : SITUATION D'UN ÉLÈVE ─────────── -->
+          <div class="tab-pane fade" id="pane-situation" role="tabpanel">
+            <div class="card mb-3">
+              <div class="card-body py-3">
+                <div class="filter-bar">
+                  <div class="filter-group" style="min-width:240px;">
+                    <label for="situationInscription">Inscription (élève)</label>
+                    <select class="form-select form-select-sm" id="situationInscription">
+                      <option value="">-- Choisir un élève --</option>
+                    </select>
+                  </div>
+                  <div class="filter-group">
+                    <button class="btn btn-primary btn-sm" id="btnChargerSituation">
+                      <i class="fa-solid fa-magnifying-glass"></i> Afficher la situation
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-lg-4">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition</h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartSituation" height="220"></canvas>
+                    <div id="chartSituationEmpty" class="text-center text-muted py-5">
+                      <i class="fa-solid fa-user-clock fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Sélectionnez un élève pour voir sa situation</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-8">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title"><i class="fa-solid fa-table-list me-2 text-primary"></i>Détail par tranche</h2>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0" id="tableSituation">
+                        <thead>
+                          <tr>
+                            <th>Tranche</th>
+                            <th>Échéance</th>
+                            <th>Attendu</th>
+                            <th>Versé</th>
+                            <th>Solde</th>
+                            <th>Statut</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr><td colspan="6" class="grid-empty">Aucune situation chargée</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="card-footer d-flex justify-content-between">
+                    <small class="text-muted">Totaux généraux de l'élève sur l'année</small>
+                    <small><strong id="situationTotaux">—</strong></small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvelle / Modifier tranche de paiement
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalTranche" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalTrancheTitle"><i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouvelle tranche de paiement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" id="trancheFormError"></div>
+          <form id="formTranche">
+            <input type="hidden" id="trancheId">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Année scolaire</label>
+                <select class="form-select" id="trancheAnnee" disabled>
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Libellé *</label>
+                <input type="text" class="form-control" id="trancheLibelle" maxlength="100" placeholder="Ex : 1ère tranche" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Montant attendu (FCFA) *</label>
+                <input type="number" class="form-control" id="trancheMontant" min="1" step="1" placeholder="Ex : 50000" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date limite</label>
+                <input type="date" class="form-control" id="trancheDateLimite">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnEnregistrerTranche"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Enregistrer / Modifier un paiement
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalPaiement" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalPaiementTitle"><i class="fa-solid fa-receipt me-2 text-primary"></i>Enregistrer un paiement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" id="paiementFormError"></div>
+          <form id="formPaiement">
+            <input type="hidden" id="paiementId">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Élève (inscription) *</label>
+                <select class="form-select" id="paiementInscription" required>
+                  <option value="">-- Choisir un élève --</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Tranche de paiement *</label>
+                <select class="form-select" id="paiementTranche" required>
+                  <option value="">-- Choisir une tranche --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Montant versé (FCFA) *</label>
+                <input type="number" class="form-control" id="paiementMontant" min="1" step="1" placeholder="Ex : 25000" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date du paiement *</label>
+                <input type="date" class="form-control" id="paiementDate" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Mode de paiement</label>
+                <select class="form-select" id="paiementMode">
+                  <option value="">-- Non précisé --</option>
+                  <option value="Espèces">Espèces</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Virement">Virement bancaire</option>
+                  <option value="Chèque">Chèque</option>
+                  <option value="Carte">Carte bancaire</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnEnregistrerPaiement"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Confirmation suppression
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0" id="confirmSuppressionMessage">Confirmer la suppression ? Cette action est irréversible.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btnConfirmerSuppression"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page Paiements -->
+  <script>
+    (function () {
+      "use strict";
+
+      /* ═══════════════════════════════════════
+         CONFIGURATION DES ENDPOINTS
+         Les routes ci-dessous correspondent à paiements_api.py.
+         Les routes marquées "à adapter" ne sont pas définies dans les
+         fichiers fournis (inscriptions/élèves, années scolaires) :
+         ajustez-les selon vos blueprints réels.
+      ═══════════════════════════════════════ */
+      const API_BASE = "/api/paiements";
+      const ENDPOINTS = {
+        tranches: `${API_BASE}/tranches`,
+        trancheById: (id) => `${API_BASE}/tranches/${id}`,
+        tranchesByAnnee: (anneeId) => `${API_BASE}/annees/${anneeId}/tranches`,
+        totalVerseTranche: (id) => `${API_BASE}/tranches/${id}/total-verse`,
+        paiements: `${API_BASE}`,
+        paiementById: (id) => `${API_BASE}/${id}`,
+        paiementsByTranche: (trancheId) => `${API_BASE}/tranches/${trancheId}/paiements`,
+        situation: (inscriptionId, anneeId) => `${API_BASE}/inscriptions/${inscriptionId}/situation/${anneeId}`,
+
+        // Routes réelles ou à adapter selon vos blueprints existants :
+        anneesScolaires: "/api/structure/annees-scolaires",
+        inscriptions: "/api/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: {...} }
+      };
+
+      const state = {
+        annees: [],
+        anneeActiveId: null,
+        tranches: [],
+        tranchesTotals: {},   // { trancheId: total_verse }
+        paiements: [],
+        inscriptions: []
+      };
+
+      let chartRecouvrement = null;
+      let chartTranches = null;
+      let chartSituation = null;
+
+      /* ═══════════════════════════════════════
+         HELPERS
+      ═══════════════════════════════════════ */
+      async function apiFetch(url, options = {}) {
+        const res = await fetch(url, {
+          headers: { "Content-Type": "application/json" },
+          ...options
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch (e) { /* réponse vide */ }
+        if (!res.ok || (payload && payload.success === false)) {
+          const message = (payload && payload.error) || `Erreur ${res.status}`;
+          throw new Error(message);
+        }
+        return payload;
+      }
+
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+      }
+
+      function formatMontant(v) {
+        const n = Number(v || 0);
+        return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " FCFA";
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+      }
+
+      function statutBadge(statut) {
+        const map = {
+          "Soldé": "badge-statut-solde",
+          "Partiel": "badge-statut-partiel",
+          "Impayé": "badge-statut-impaye"
+        };
+        return `<span class="badge ${map[statut] || 'badge-neutral'}">${escapeHtml(statut)}</span>`;
+      }
+
+      function eleveNomFromInscription(insc) {
+        if (!insc) return "Élève inconnu";
+        if (insc.eleve_nom) return insc.eleve_nom;
+        if (insc.eleve) return `${insc.eleve.nom || ""} ${insc.eleve.prenom || ""}`.trim();
+        return `Inscription #${insc.id}`;
+      }
+
+      function eleveInitiales(nom) {
+        const parts = (nom || "").trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return "?";
+        return (parts[0][0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
+      }
+
+      function showToast(message, type) {
+        const body = document.getElementById("toastBody");
+        const title = document.getElementById("toastTitle");
+        const icon = document.getElementById("toastIcon");
+        body.textContent = message;
+        title.textContent = type === "error" ? "Erreur" : "Notification";
+        icon.className = type === "error"
+          ? "fa-solid fa-circle-exclamation text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        new bootstrap.Toast(document.getElementById("appToast"), { delay: 4000 }).show();
+      }
+
+      /* ═══════════════════════════════════════
+         RÉFÉRENTIELS : ANNÉES SCOLAIRES / INSCRIPTIONS
+      ═══════════════════════════════════════ */
+      async function loadAnnees() {
+        const select = document.getElementById("filterAnnee");
+        const trancheAnnee = document.getElementById("trancheAnnee");
+        try {
+          const payload = await apiFetch(ENDPOINTS.anneesScolaires);
+          state.annees = payload.data || [];
+          if (!state.annees.length) throw new Error("Aucune année scolaire trouvée");
+          select.innerHTML = state.annees.map(a =>
+            `<option value="${a.id}" ${a.active ? "selected" : ""}>${escapeHtml(a.libelle)}${a.active ? " (Active)" : ""}</option>`
+          ).join("");
+          const active = state.annees.find(a => a.active) || state.annees[0];
+          state.anneeActiveId = active.id;
+          trancheAnnee.innerHTML = `<option value="${active.id}">${escapeHtml(active.libelle)}</option>`;
+        } catch (e) {
+          select.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Années scolaires : ${e.message}`, "error");
+        }
+      }
+
+      async function loadInscriptions() {
+        const selPaiement = document.getElementById("paiementInscription");
+        const selSituation = document.getElementById("situationInscription");
+        try {
+          const payload = await apiFetch(ENDPOINTS.inscriptions);
+          state.inscriptions = payload.data || [];
+          const options = state.inscriptions.map(i =>
+            `<option value="${i.id}">${escapeHtml(eleveNomFromInscription(i))}${i.classe_nom ? ` — ${escapeHtml(i.classe_nom)}` : ""}</option>`
+          ).join("");
+          selPaiement.innerHTML = `<option value="">-- Choisir un élève --</option>` + options;
+          selSituation.innerHTML = `<option value="">-- Choisir un élève --</option>` + options;
+        } catch (e) {
+          selPaiement.innerHTML = `<option value="">Indisponible — vérifiez l'endpoint inscriptions</option>`;
+          selSituation.innerHTML = `<option value="">Indisponible — vérifiez l'endpoint inscriptions</option>`;
+        }
+      }
+
+      /* ═══════════════════════════════════════
+         TRANCHES DE PAIEMENT
+      ═══════════════════════════════════════ */
+      async function loadTranches() {
+        const grid = document.getElementById("tranchesGrid");
+        if (!state.anneeActiveId) return;
+        grid.innerHTML = `<div class="col-12 grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement des tranches…</div>`;
+        try {
+          const payload = await apiFetch(ENDPOINTS.tranchesByAnnee(state.anneeActiveId));
+          state.tranches = payload.data || [];
+          document.getElementById("tranchesCount").textContent = state.tranches.length;
+
+          await Promise.all(state.tranches.map(async (t) => {
+            try {
+              const tv = await apiFetch(ENDPOINTS.totalVerseTranche(t.id));
+              state.tranchesTotals[t.id] = tv.data.total_verse;
+            } catch (e) {
+              state.tranchesTotals[t.id] = 0;
+            }
+          }));
+
+          renderTranchesGrid();
+          populateTrancheSelects();
+          updateStats();
+          renderCharts();
+        } catch (e) {
+          grid.innerHTML = `<div class="col-12 grid-empty">Erreur : ${escapeHtml(e.message)}</div>`;
+        }
+      }
+
+      function renderTranchesGrid() {
+        const grid = document.getElementById("tranchesGrid");
+        if (!state.tranches.length) {
+          grid.innerHTML = `<div class="col-12 grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucune tranche définie pour cette année scolaire.</div>`;
+          return;
+        }
+        grid.innerHTML = state.tranches.map((t) => {
+          const verse = state.tranchesTotals[t.id] || 0;
+          const attendu = Number(t.montant_attendu) || 0;
+          const pct = attendu > 0 ? Math.min(100, Math.round((verse / attendu) * 100)) : 0;
+          const barClass = pct >= 100 ? "bg-success" : pct >= 50 ? "bg-warning" : "bg-danger";
+          return `
+            <div class="col-md-6 col-xl-4">
+              <div class="tranche-card">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="tranche-libelle">${escapeHtml(t.libelle)}</div>
+                    <div class="tranche-date"><i class="fa-regular fa-calendar me-1"></i>${t.date_limite ? "Échéance : " + formatDate(t.date_limite) : "Sans échéance"}</div>
+                  </div>
+                  <div class="tranche-actions">
+                    <button class="btn btn-icon btn-sm btn-light js-edit-tranche" data-id="${t.id}" title="Modifier"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-icon btn-sm btn-light js-delete-tranche" data-id="${t.id}" title="Supprimer"><i class="fa-solid fa-trash text-danger"></i></button>
+                  </div>
+                </div>
+                <div class="progress mt-3" style="height:6px;">
+                  <div class="progress-bar ${barClass}" style="width:${pct}%"></div>
+                </div>
+                <div class="tranche-montants">
+                  <span>Versé : <strong>${formatMontant(verse)}</strong></span>
+                  <span>${pct}%</span>
+                </div>
+                <div class="tranche-montants">
+                  <span>Attendu : ${formatMontant(attendu)}</span>
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+
+        grid.querySelectorAll(".js-edit-tranche").forEach(btn => btn.addEventListener("click", () => openTrancheModal(btn.dataset.id)));
+        grid.querySelectorAll(".js-delete-tranche").forEach(btn => btn.addEventListener("click", () => confirmDeleteTranche(btn.dataset.id)));
+      }
+
+      function populateTrancheSelects() {
+        const options = state.tranches.map(t => `<option value="${t.id}">${escapeHtml(t.libelle)}</option>`).join("");
+        document.getElementById("filterTranchePaiements").innerHTML = `<option value="">Toutes les tranches</option>` + options;
+        document.getElementById("paiementTranche").innerHTML = `<option value="">-- Choisir une tranche --</option>` + options;
+      }
+
+      function openTrancheModal(id) {
+        document.getElementById("formTranche").reset();
+        document.getElementById("trancheFormError").classList.add("d-none");
+        document.getElementById("trancheId").value = "";
+        document.getElementById("trancheAnnee").innerHTML = state.anneeActiveId
+          ? `<option value="${state.anneeActiveId}">${escapeHtml((state.annees.find(a => a.id == state.anneeActiveId) || {}).libelle || "")}</option>`
+          : "";
+
+        if (id) {
+          const t = state.tranches.find(x => x.id == id);
+          if (!t) return;
+          document.getElementById("modalTrancheTitle").innerHTML = `<i class="fa-solid fa-layer-group me-2 text-primary"></i>Modifier la tranche`;
+          document.getElementById("trancheId").value = t.id;
+          document.getElementById("trancheLibelle").value = t.libelle;
+          document.getElementById("trancheMontant").value = t.montant_attendu;
+          document.getElementById("trancheDateLimite").value = t.date_limite || "";
+        } else {
+          document.getElementById("modalTrancheTitle").innerHTML = `<i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouvelle tranche de paiement`;
+        }
+        new bootstrap.Modal(document.getElementById("modalTranche")).show();
+      }
+
+      document.getElementById("btnNouvelleTranche").addEventListener("click", () => openTrancheModal(null));
+
+      document.getElementById("btnEnregistrerTranche").addEventListener("click", async () => {
+        const errorBox = document.getElementById("trancheFormError");
+        errorBox.classList.add("d-none");
+
+        const id = document.getElementById("trancheId").value;
+        const data = {
+          annee_scolaire_id: Number(state.anneeActiveId),
+          libelle: document.getElementById("trancheLibelle").value.trim(),
+          montant_attendu: document.getElementById("trancheMontant").value,
+          date_limite: document.getElementById("trancheDateLimite").value || null
+        };
+
+        if (!data.libelle || !data.montant_attendu) {
+          errorBox.textContent = "Veuillez renseigner le libellé et le montant attendu.";
+          errorBox.classList.remove("d-none");
+          return;
+        }
+
+        try {
+          if (id) {
+            await apiFetch(ENDPOINTS.trancheById(id), { method: "PUT", body: JSON.stringify(data) });
+            showToast("Tranche mise à jour avec succès.");
+          } else {
+            await apiFetch(ENDPOINTS.tranches, { method: "POST", body: JSON.stringify(data) });
+            showToast("Tranche créée avec succès.");
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalTranche")).hide();
+          await loadTranches();
+        } catch (e) {
+          errorBox.textContent = e.message;
+          errorBox.classList.remove("d-none");
+        }
+      });
+
+      let deleteContext = null;
+
+      function confirmDeleteTranche(id) {
+        deleteContext = { type: "tranche", id };
+        document.getElementById("confirmSuppressionMessage").textContent =
+          "Supprimer cette tranche de paiement ? Les paiements liés seront également supprimés.";
+        new bootstrap.Modal(document.getElementById("modalConfirmSuppression")).show();
+      }
+
+      function confirmDeletePaiement(id) {
+        deleteContext = { type: "paiement", id };
+        document.getElementById("confirmSuppressionMessage").textContent =
+          "Supprimer ce paiement ? Cette action est irréversible.";
+        new bootstrap.Modal(document.getElementById("modalConfirmSuppression")).show();
+      }
+
+      document.getElementById("btnConfirmerSuppression").addEventListener("click", async () => {
+        if (!deleteContext) return;
+        try {
+          if (deleteContext.type === "tranche") {
+            await apiFetch(ENDPOINTS.trancheById(deleteContext.id), { method: "DELETE" });
+            showToast("Tranche supprimée avec succès.");
+            await loadTranches();
+          } else {
+            await apiFetch(ENDPOINTS.paiementById(deleteContext.id), { method: "DELETE" });
+            showToast("Paiement supprimé avec succès.");
+            await loadPaiements();
+            await loadTranches();
+          }
+        } catch (e) {
+          showToast(e.message, "error");
+        } finally {
+          deleteContext = null;
+          bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression")).hide();
+        }
+      });
+
+      /* ═══════════════════════════════════════
+         PAIEMENTS
+      ═══════════════════════════════════════ */
+      async function loadPaiements() {
+        const tbody = document.querySelector("#tablePaiements tbody");
+        tbody.innerHTML = `<tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+        try {
+          const trancheFiltre = document.getElementById("filterTranchePaiements").value;
+          const payload = trancheFiltre
+            ? await apiFetch(ENDPOINTS.paiementsByTranche(trancheFiltre))
+            : await apiFetch(ENDPOINTS.paiements);
+          state.paiements = payload.data || [];
+          document.getElementById("paiementsCount").textContent = state.paiements.length;
+          renderPaiementsTable();
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
+        }
+      }
+
+      function renderPaiementsTable() {
+        const tbody = document.querySelector("#tablePaiements tbody");
+        if (!state.paiements.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucun paiement enregistré.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = state.paiements.map((p) => {
+          const nomEleve = p.eleve ? `${p.eleve.nom || ""} ${p.eleve.prenom || ""}`.trim() : `Inscription #${p.inscription_id}`;
+          const libelleTranche = p.tranche_paiement ? p.tranche_paiement.libelle : "—";
+          return `
+            <tr>
+              <td>
+                <div class="eleve-mini">
+                  <div class="eleve-avatar-mini">${escapeHtml(eleveInitiales(nomEleve))}</div>
+                  <span>${escapeHtml(nomEleve)}</span>
+                </div>
+              </td>
+              <td>${escapeHtml(libelleTranche)}</td>
+              <td><strong>${formatMontant(p.montant_verse)}</strong></td>
+              <td>${formatDate(p.date_paiement)}</td>
+              <td>${p.mode_paiement ? `<span class="badge badge-neutral">${escapeHtml(p.mode_paiement)}</span>` : '<span class="text-muted">—</span>'}</td>
+              <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light js-delete-paiement" data-id="${p.id}" title="Supprimer"><i class="fa-solid fa-trash text-danger"></i></button>
+              </td>
+            </tr>`;
+        }).join("");
+
+        tbody.querySelectorAll(".js-delete-paiement").forEach(btn => btn.addEventListener("click", () => confirmDeletePaiement(btn.dataset.id)));
+      }
+
+      document.getElementById("filterTranchePaiements").addEventListener("change", loadPaiements);
+
+      function resetPaiementForm() {
+        document.getElementById("formPaiement").reset();
+        document.getElementById("paiementFormError").classList.add("d-none");
+        document.getElementById("paiementId").value = "";
+        document.getElementById("paiementDate").value = new Date().toISOString().slice(0, 10);
+      }
+
+      document.getElementById("modalPaiement").addEventListener("show.bs.modal", resetPaiementForm);
+
+      document.getElementById("btnEnregistrerPaiement").addEventListener("click", async () => {
+        const errorBox = document.getElementById("paiementFormError");
+        errorBox.classList.add("d-none");
+
+        const data = {
+          inscription_id: Number(document.getElementById("paiementInscription").value),
+          tranche_paiement_id: Number(document.getElementById("paiementTranche").value),
+          montant_verse: document.getElementById("paiementMontant").value,
+          date_paiement: document.getElementById("paiementDate").value,
+          mode_paiement: document.getElementById("paiementMode").value || null
+        };
+
+        if (!data.inscription_id || !data.tranche_paiement_id || !data.montant_verse) {
+          errorBox.textContent = "Veuillez renseigner l'élève, la tranche et le montant versé.";
+          errorBox.classList.remove("d-none");
+          return;
+        }
+
+        try {
+          await apiFetch(ENDPOINTS.paiements, { method: "POST", body: JSON.stringify(data) });
+          showToast("Paiement enregistré avec succès.");
+          bootstrap.Modal.getInstance(document.getElementById("modalPaiement")).hide();
+          await loadPaiements();
+          await loadTranches();
+        } catch (e) {
+          errorBox.textContent = e.message;
+          errorBox.classList.remove("d-none");
+        }
+      });
+
+      /* ═══════════════════════════════════════
+         SITUATION FINANCIÈRE D'UN ÉLÈVE
+      ═══════════════════════════════════════ */
+      async function loadSituation() {
+        const inscriptionId = document.getElementById("situationInscription").value;
+        const tbody = document.querySelector("#tableSituation tbody");
+        if (!inscriptionId) {
+          showToast("Veuillez choisir un élève.", "error");
+          return;
+        }
+        if (!state.anneeActiveId) return;
+
+        tbody.innerHTML = `<tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+        try {
+          const payload = await apiFetch(ENDPOINTS.situation(inscriptionId, state.anneeActiveId));
+          renderSituation(payload.data);
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
+        }
+      }
+
+      function renderSituation(situation) {
+        const tbody = document.querySelector("#tableSituation tbody");
+        if (!situation || !situation.tranches.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucune tranche pour cette année scolaire.</td></tr>`;
+        } else {
+          tbody.innerHTML = situation.tranches.map((t) => `
+            <tr>
+              <td>${escapeHtml(t.libelle)}</td>
+              <td>${t.date_limite ? formatDate(t.date_limite) : "—"}</td>
+              <td>${formatMontant(t.montant_attendu)}</td>
+              <td>${formatMontant(t.montant_verse)}</td>
+              <td class="${t.solde > 0 ? 'solde-negatif' : 'solde-positif'}">${formatMontant(t.solde)}</td>
+              <td>${statutBadge(t.statut)}</td>
+            </tr>`).join("");
+        }
+
+        document.getElementById("situationTotaux").textContent =
+          `Attendu ${formatMontant(situation.total_attendu)} · Versé ${formatMontant(situation.total_verse)} · Solde ${formatMontant(situation.solde_global)}`;
+
+        renderChartSituation(situation);
+      }
+
+      document.getElementById("btnChargerSituation").addEventListener("click", loadSituation);
+
+      /* ═══════════════════════════════════════
+         STATISTIQUES GLOBALES
+      ═══════════════════════════════════════ */
+      function updateStats() {
+        const totalAttendu = state.tranches.reduce((sum, t) => sum + Number(t.montant_attendu || 0), 0);
+        const totalVerse = state.tranches.reduce((sum, t) => sum + Number(state.tranchesTotals[t.id] || 0), 0);
+        const solde = totalAttendu - totalVerse;
+        const taux = totalAttendu > 0 ? Math.round((totalVerse / totalAttendu) * 100) : 0;
+
+        document.getElementById("statAttendu").textContent = formatMontant(totalAttendu);
+        document.getElementById("statVerse").textContent = formatMontant(totalVerse);
+        document.getElementById("statVerseChange").textContent = `${taux}% de l'attendu`;
+        document.getElementById("statSolde").textContent = formatMontant(solde);
+        document.getElementById("statTaux").textContent = `${taux}%`;
+      }
+
+      /* ═══════════════════════════════════════
+         GRAPHIQUES (Chart.js)
+      ═══════════════════════════════════════ */
+      function renderCharts() {
+        renderChartRecouvrement();
+        renderChartTranches();
+      }
+
+      function renderChartRecouvrement() {
+        const ctx = document.getElementById("chartRecouvrement");
+        const emptyEl = document.getElementById("chartRecouvrementEmpty");
+
+        const totalAttendu = state.tranches.reduce((sum, t) => sum + Number(t.montant_attendu || 0), 0);
+        const totalVerse = state.tranches.reduce((sum, t) => sum + Number(state.tranchesTotals[t.id] || 0), 0);
+        const solde = Math.max(totalAttendu - totalVerse, 0);
+
+        if (chartRecouvrement) chartRecouvrement.destroy();
+
+        if (totalAttendu <= 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartRecouvrement = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Montant versé", "Solde restant"],
+            datasets: [{
+              data: [totalVerse, solde],
+              backgroundColor: [cssVar("--ta-success"), cssVar("--ta-danger-light")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "62%",
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") } },
+              tooltip: { callbacks: { label: (c) => ` ${c.label} : ${formatMontant(c.raw)}` } }
+            }
+          }
+        });
+      }
+
+      function renderChartTranches() {
+        const ctx = document.getElementById("chartTranches");
+        const emptyEl = document.getElementById("chartTranchesEmpty");
+
+        if (chartTranches) chartTranches.destroy();
+
+        if (!state.tranches.length) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartTranches = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: state.tranches.map(t => t.libelle),
+            datasets: [
+              {
+                label: "Montant attendu",
+                data: state.tranches.map(t => Number(t.montant_attendu || 0)),
+                backgroundColor: cssVar("--ta-primary-light"),
+                borderRadius: 4,
+                maxBarThickness: 30
+              },
+              {
+                label: "Montant versé",
+                data: state.tranches.map(t => Number(state.tranchesTotals[t.id] || 0)),
+                backgroundColor: cssVar("--ta-primary"),
+                borderRadius: 4,
+                maxBarThickness: 30
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") } },
+              tooltip: { callbacks: { label: (c) => ` ${c.dataset.label} : ${formatMontant(c.raw)}` } }
+            },
+            scales: {
+              x: { ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 } }, grid: { display: false } },
+              y: {
+                beginAtZero: true,
+                ticks: { color: cssVar("--ta-text-muted"), font: { size: 11 }, callback: (v) => v.toLocaleString("fr-FR") },
+                grid: { color: cssVar("--ta-border-light") }
+              }
+            }
+          }
+        });
+      }
+
+      function renderChartSituation(situation) {
+        const ctx = document.getElementById("chartSituation");
+        const emptyEl = document.getElementById("chartSituationEmpty");
+
+        if (chartSituation) chartSituation.destroy();
+
+        const verse = Number(situation.total_verse || 0);
+        const solde = Math.max(Number(situation.solde_global || 0), 0);
+
+        if (verse + solde <= 0) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        chartSituation = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Versé", "Solde restant"],
+            datasets: [{
+              data: [verse, solde],
+              backgroundColor: [cssVar("--ta-success"), cssVar("--ta-danger-light")],
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "65%",
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") } },
+              tooltip: { callbacks: { label: (c) => ` ${c.label} : ${formatMontant(c.raw)}` } }
+            }
+          }
+        });
+      }
+
+      /* ═══════════════════════════════════════
+         ONGLETS
+      ═══════════════════════════════════════ */
+      document.querySelectorAll("#paiementsTabs button[data-bs-toggle='tab']").forEach((btn) => {
+        btn.addEventListener("shown.bs.tab", (e) => {
+          if (e.target.id === "tab-paiements") loadPaiements();
+        });
+      });
+
+      /* ═══════════════════════════════════════
+         FILTRE ANNÉE SCOLAIRE
+      ═══════════════════════════════════════ */
+      document.getElementById("filterAnnee").addEventListener("change", async (e) => {
+        state.anneeActiveId = e.target.value;
+        document.getElementById("trancheAnnee").innerHTML = `<option value="${state.anneeActiveId}">${escapeHtml((state.annees.find(a => a.id == state.anneeActiveId) || {}).libelle || "")}</option>`;
+        await loadTranches();
+      });
+
+      /* ═══════════════════════════════════════
+         ACTUALISATION / EXPORT
+      ═══════════════════════════════════════ */
+      document.getElementById("btnRefresh").addEventListener("click", async () => {
+        await loadTranches();
+        await loadPaiements();
+        showToast("Données actualisées.");
+      });
+
+      document.getElementById("btnExportCsv").addEventListener("click", () => {
+        if (!state.paiements.length) {
+          showToast("Aucun paiement à exporter.", "error");
+          return;
+        }
+        const rows = [["Élève", "Tranche", "Montant versé", "Date", "Mode de paiement"]];
+        state.paiements.forEach((p) => {
+          const nomEleve = p.eleve ? `${p.eleve.nom || ""} ${p.eleve.prenom || ""}`.trim() : `Inscription #${p.inscription_id}`;
+          rows.push([
+            nomEleve,
+            p.tranche_paiement ? p.tranche_paiement.libelle : "",
+            p.montant_verse,
+            p.date_paiement || "",
+            p.mode_paiement || ""
+          ]);
+        });
+        const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "paiements.csv";
+        link.click();
+        showToast("Le fichier CSV a été téléchargé.");
+      });
+
+      /* ═══════════════════════════════════════
+         INIT
+      ═══════════════════════════════════════ */
+      async function init() {
+        document.getElementById("modalPaiement").addEventListener("hidden.bs.modal", resetPaiementForm);
+        await Promise.all([loadAnnees(), loadInscriptions()]);
+        await loadTranches();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

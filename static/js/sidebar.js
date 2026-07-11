@@ -1,4 +1,3 @@
-
 (function () {
   "use strict";
 
@@ -8,105 +7,40 @@
      "key" correspond à la valeur de data-page="..."
   ════════════════════════════════════════════════ */
   const MENU = [
-    /* ── Tableau de bord ── */
-    {
-      section: null,
-      items: [
-        {
-          key: "dashboard",
-          label: "Tableau de bord",
-          icon: "fa-gauge-high",
-          href: "/dashboard",
-        },
-      ],
-    },
-
     /* ── Pédagogie ── */
     {
       section: "Pédagogie",
       items: [
         {
-          key: "etablissement",
-          label: "Établissement",
-          icon: "fa-school",
-          href: "/etablissement",
-        },
-        {
-          key: "annees",
-          label: "Années scolaires",
-          icon: "fa-calendar-days",
-          href: "/annees-scolaires",
-        },
-        {
-          key: "Configuration",
-          label: "Structure & Classes",
+          key: "config",
+          label: "Configuration",
           icon: "fa-chalkboard",
           href: "/config",
         },
         {
-          key: "enseignants",
+          key: "enseignant",
           label: "Enseignants",
           icon: "fa-user-tie",
           href: "/enseignant",
         },
         {
-          key: "matieres",
-          label: "Matières & Coefficients",
+          key: "matiere",
+          label: "Matières",
           icon: "fa-book-open",
           href: "/matiere",
         },
       ],
     },
 
-     /* ── Emploi de temps ── */
+    /* ── Emploi de temps ── */
     {
       section: "Horaire & Emploi du temps",
       items: [
         {
-          key: "horaires",
+          key: "horaire",
           label: "Horaires",
           icon: "fa-clock",
           href: "/horaire",
-        }
-        
-      ],
-    },
-
-    /* ── Bulletins ── */
-    {
-      section: "Bulletins",
-      items: [
-        {
-          key: "eleves",
-          label: "Élèves & Inscriptions",
-          icon: "fa-users",
-          href: "/eleves",
-        },
-        {
-          key: "notes",
-          label: "Saisie des notes",
-          icon: "fa-pen-to-square",
-          href: "/notes",
-          submenu: [
-            { key: "notes-saisie",  label: "Saisie manuelle", href: "/notes/saisie" },
-            { key: "notes-import",  label: "Import Excel",     href: "/notes/import" },
-          ],
-        },
-        {
-          key: "bulletins",
-          label: "Bulletins",
-          icon: "fa-file-lines",
-          href: "/bulletins",
-          submenu: [
-            { key: "bulletins-generer",   label: "Générer",         href: "/bulletins/generer" },
-            { key: "bulletins-telecharger", label: "Télécharger",   href: "/bulletins/telecharger" },
-          ],
-        },
-        {
-          key: "discipline",
-          label: "Discipline",
-          icon: "fa-triangle-exclamation",
-          href: "/discipline",
         },
       ],
     },
@@ -116,48 +50,22 @@
       section: "Scolarité",
       items: [
         {
+          key: "inscription",
+          label: "Inscriptions",
+          icon: "fa-user-plus",
+          href: "/inscription",
+        },
+        {
+          key: "evaluation",
+          label: "Évaluations",
+          icon: "fa-pen-to-square",
+          href: "/evaluation",
+        },
+        {
           key: "paiements",
           label: "Paiements",
           icon: "fa-money-bill-wave",
           href: "/paiements",
-        },
-        {
-          key: "recus",
-          label: "Reçus",
-          icon: "fa-receipt",
-          href: "/recus",
-        },
-      ],
-    },
-
-    /* ── Administration ── */
-    {
-      section: "Administration",
-      items: [
-        {
-          key: "utilisateurs",
-          label: "Utilisateurs & Rôles",
-          icon: "fa-user-shield",
-          href: "/utilisateurs",
-        },
-        {
-          key: "abonnement",
-          label: "Abonnement",
-          icon: "fa-crown",
-          href: "/abonnement",
-        },
-        {
-          key: "notifications",
-          label: "Notifications",
-          icon: "fa-bell",
-          href: "/notifications",
-          badge: "3",
-        },
-        {
-          key: "parametres",
-          label: "Paramètres",
-          icon: "fa-gear",
-          href: "/parametres",
         },
       ],
     },
