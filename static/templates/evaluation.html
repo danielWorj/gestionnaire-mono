@@ -1224,7 +1224,8 @@
           state.notesIndex[`${inscriptionId}|${matiereClasseId}`] = note;
           cell.dataset.noteId = note.id;
           input.classList.remove("note-faible", "note-forte");
-          input.classList.add(noteClassFor(note.valeur));
+          const noteClass = noteClassFor(note.valeur);
+          if (noteClass) input.classList.add(noteClass);
           input.classList.add("note-saved-flash");
           setTimeout(() => input.classList.remove("note-saved-flash"), 650);
           cell.querySelector(".note-delete").style.display = "flex";

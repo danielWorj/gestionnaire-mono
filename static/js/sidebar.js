@@ -56,6 +56,18 @@
           href: "/inscription",
         },
         {
+          key: "eleve",
+          label: "Élèves",
+          icon: "fa-user-graduate",
+          href: "/eleve",
+        },
+        {
+          key: "parent",
+          label: "Parents",
+          icon: "fa-people-roof",
+          href: "/parent",
+        },
+        {
           key: "evaluation",
           label: "Évaluations",
           icon: "fa-pen-to-square",

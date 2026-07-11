@@ -1,6 +1,7 @@
 from flask import Flask, app, render_template
 from config import config
 from models import db
+from flask_migrate import Migrate
 from api.structure_api import structure_bp
 from api.pedagogie_api import pedagogie_bp
 from api.emploi_du_temps_api import emploi_du_temps_bp
@@ -11,6 +12,8 @@ from api.paiements_api import paiements_bp
 
 from pathlib import Path
 import os
+import threading
+import webbrowser
 
 # Dossier contenant ce fichier app.py (fiable, quel que soit l'endroit d'où on lance le script)
 BASE_DIR = Path(__file__).resolve().parent
@@ -31,6 +34,7 @@ def create_app(config_name=None):
 
     # Initialiser les extensions
     db.init_app(app)
+    Migrate(app, db)
 
     # Enregistrer les blueprints
     app.register_blueprint(structure_bp)
@@ -86,6 +90,9 @@ def create_app(config_name=None):
     @app.route('/paiements')
     def paiements_page():
         return render_template('paiements.html')
+    @app.route('/eleve')
+    def eleve_page():
+        return render_template('eleve.html')
     @app.route('/parent')
     def parent_page():
         return render_template('parent.html')
@@ -94,12 +101,15 @@ def create_app(config_name=None):
     def index_page():
         return render_template('index.html')
 
-    # Créer les tables
-    with app.app_context():
-        db.create_all()
-
     return app
 
 if __name__ == '__main__':
     app = create_app()
+
+    # Ouvre automatiquement le navigateur sur la page d'accueil (index.html)
+    # Le délai laisse le serveur Flask le temps de démarrer avant l'ouverture.
+    # On évite le double-lancement dû au reloader de Flask en debug=True.
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        threading.Timer(1.0, lambda: webbrowser.open('http://127.0.0.1:5000/')).start()
+
     app.run(debug=True, host='0.0.0.0', port=5000)

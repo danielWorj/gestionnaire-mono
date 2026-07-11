@@ -1,11 +1,41 @@
 import os
 import uuid
 from pathlib import Path
+from datetime import datetime, date
 
 from models.inscription import Eleve, Inscription
 from models.parent import Parent
 from models import db
 from sqlalchemy.exc import IntegrityError
+
+
+def _parse_date(valeur):
+    """
+    Convertit une date reçue du client (string 'YYYY-MM-DD' venant d'un
+    formulaire HTML/multipart, ou déjà un objet date/datetime venant du JSON)
+    en objet Python `date`, seul type accepté par la colonne SQLite.
+    Retourne None si la valeur est vide/absente.
+    """
+    if not valeur:
+        return None
+    if isinstance(valeur, datetime):
+        return valeur.date()
+    if isinstance(valeur, date):
+        return valeur
+    if isinstance(valeur, str):
+        valeur = valeur.strip()
+        if not valeur:
+            return None
+        try:
+            # Format natif des <input type="date"> : YYYY-MM-DD
+            return datetime.strptime(valeur, '%Y-%m-%d').date()
+        except ValueError:
+            try:
+                # Repli si jamais une valeur ISO avec heure est envoyée
+                return datetime.fromisoformat(valeur).date()
+            except ValueError:
+                raise ValueError(f"Format de date invalide : '{valeur}' (attendu : AAAA-MM-JJ)")
+    raise ValueError(f"Format de date invalide : {valeur!r}")
 
 
 # ==================== UPLOAD PHOTO ====================
@@ -111,7 +141,7 @@ class EleveService:
                 matricule=data['matricule'],
                 nom=data['nom'],
                 prenom=data['prenom'],
-                date_naissance=data.get('date_naissance'),
+                date_naissance=_parse_date(data.get('date_naissance')),
                 lieu_naissance=data.get('lieu_naissance'),
                 sexe=data.get('sexe'),
                 adresse=data.get('adresse'),
@@ -144,7 +174,7 @@ class EleveService:
             if 'prenom' in data:
                 eleve.prenom = data['prenom']
             if 'date_naissance' in data:
-                eleve.date_naissance = data['date_naissance']
+                eleve.date_naissance = _parse_date(data['date_naissance'])
             if 'lieu_naissance' in data:
                 eleve.lieu_naissance = data['lieu_naissance']
             if 'sexe' in data:
@@ -242,7 +272,7 @@ class InscriptionService:
                 eleve_id=data['eleve_id'],
                 classe_id=data['classe_id'],
                 annee_scolaire_id=data['annee_scolaire_id'],
-                date_inscription=data.get('date_inscription'),
+                date_inscription=_parse_date(data.get('date_inscription')),
                 statut=data.get('statut', 'Inscrit'),
                 redoublant=data.get('redoublant', False)
             )
@@ -266,7 +296,7 @@ class InscriptionService:
             if 'annee_scolaire_id' in data:
                 inscription.annee_scolaire_id = data['annee_scolaire_id']
             if 'date_inscription' in data:
-                inscription.date_inscription = data['date_inscription']
+                inscription.date_inscription = _parse_date(data['date_inscription'])
             if 'statut' in data:
                 inscription.statut = data['statut']
             if 'redoublant' in data:

@@ -45,6 +45,9 @@
             <button class="btn btn-light btn-sm" type="button" id="btnExportCsv">
               <i class="fa-solid fa-file-export"></i> Exporter
             </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnImprimerListe">
+              <i class="fa-solid fa-print"></i> Liste de classe
+            </button>
             <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
               <i class="fa-solid fa-rotate"></i> Actualiser
             </button>
@@ -642,6 +645,7 @@
       let inscriptions = [];
       let classes = [];
       let annees = [];
+      let anneeActiveId = null;
       let parents = [];
       let chartStatuts = null;
       let chartClasses = null;
@@ -770,59 +774,110 @@
       /* ─────────────────────────────────────────
          CHARGEMENT DES DONNÉES
       ───────────────────────────────────────── */
+
+      // Chargement des élèves, ISOLÉ de loadAll().
+      // Appelée indépendamment dans init() : même si loadAll() plante
+      // (ou n'a pas encore fini), la liste des élèves se charge quand même.
+      async function loadEleves() {
+        try {
+          const res = await apiCall("/eleves");
+          eleves = res.data || [];
+        } catch (e) {
+          console.error("Erreur chargement élèves:", e);
+          showToast(`Élèves : ${e.message}`, "error");
+        }
+        try {
+          populateFormSelects();
+          renderStats();
+          renderTable();
+        } catch (renderErr) {
+          console.error("Erreur affichage (élèves):", renderErr);
+        }
+      }
+
+      // Chargement des classes, ISOLÉ de loadAll().
+      // Repli : si l'API structure est indisponible ou renvoie une liste vide,
+      // reconstruire les classes à partir des inscriptions déjà connues.
+      async function loadClasses() {
+        const res = await structureApiCall("/classes");
+        classes = (res.data && res.data.length) ? res.data : dedupeById(
+          inscriptions.map((i) => i.classe).filter(Boolean)
+        );
+        if (res.error) {
+          console.warn("Classes (API structure):", res.error);
+          showToast(`Classes : ${res.error}`, "error");
+        }
+        try {
+          populateFilters();
+          populateFormSelects();
+          renderStats();
+          renderTable();
+        } catch (renderErr) {
+          console.error("Erreur affichage (classes):", renderErr);
+        }
+      }
+
+      // Chargement des années scolaires (+ année active), ISOLÉ de loadAll().
+      // Même repli que pour les classes en cas d'indisponibilité de l'API structure.
+      async function loadAnneesScolaires() {
+        const [anRes, anActiveRes] = await Promise.all([
+          structureApiCall("/annees-scolaires"),
+          structureApiCall("/annees-scolaires/active")
+        ]);
+        annees = (anRes.data && anRes.data.length) ? anRes.data : dedupeById(
+          inscriptions.map((i) => i.annee_scolaire).filter(Boolean)
+        );
+        // GET /annees-scolaires/active renvoie 404 (donc anActiveRes.data === null)
+        // s'il n'y a simplement aucune année active définie — ce n'est pas une erreur.
+        anneeActiveId = anActiveRes.data ? anActiveRes.data.id : null;
+        if (anRes.error) {
+          console.warn("Années scolaires (API structure):", anRes.error);
+          showToast(`Années scolaires : ${anRes.error}`, "error");
+        }
+        try {
+          populateFilters();
+          populateFormSelects();
+          renderStats();
+          renderTable();
+          try { renderCharts(); } catch (e) { console.error("Erreur graphiques:", e); }
+        } catch (renderErr) {
+          console.error("Erreur affichage (années scolaires):", renderErr);
+        }
+      }
+
+      // loadAll() ne gère plus que les inscriptions + le rendu global.
+      // Les élèves, classes et années scolaires sont chargés par leurs
+      // fonctions dédiées (loadEleves/loadClasses/loadAnneesScolaires),
+      // appelées séparément dans init() : un plantage ici ne les empêche
+      // plus de s'afficher.
       async function loadAll() {
         renderLoadingTable();
         try {
-          const [elRes, insRes, clRes, anRes, parRes, anActiveRes] = await Promise.all([
-            apiCall("/eleves"),
-            apiCall("/inscriptions"),
-            structureApiCall("/classes"),
-            structureApiCall("/annees-scolaires"),
-            parentApiCall("").catch((e) => { console.error("Erreur chargement parents:", e); return { data: [] }; }),
-            structureApiCall("/annees-scolaires/active")
-          ]);
-          eleves = elRes.data || [];
-          inscriptions = insRes.data || [];
-          parents = parRes.data || [];
+          const res = await apiCall("/inscriptions");
+          inscriptions = res.data || [];
+        } catch (e) {
+          console.error("Erreur chargement inscriptions:", e);
+          showToast(`Inscriptions : ${e.message}`, "error");
+        }
 
-          // Repli : si l'API structure est indisponible ou renvoie une liste vide,
-          // reconstruire classes/années à partir des inscriptions existantes.
-          classes = (clRes.data && clRes.data.length) ? clRes.data : dedupeById(
-            inscriptions.map((i) => i.classe).filter(Boolean)
-          );
-          annees = (anRes.data && anRes.data.length) ? anRes.data : dedupeById(
-            inscriptions.map((i) => i.annee_scolaire).filter(Boolean)
-          );
-          // GET /annees-scolaires/active renvoie 404 (donc anActiveRes.data === null)
-          // s'il n'y a simplement aucune année active définie — ce n'est pas une erreur.
-          anneeActiveId = anActiveRes.data ? anActiveRes.data.id : null;
-
-          if (clRes.error) {
-            console.warn("Classes (API structure):", clRes.error);
-            showToast(`Classes : ${clRes.error}`, "error");
-          }
-          if (anRes.error) {
-            console.warn("Années scolaires (API structure):", anRes.error);
-            showToast(`Années scolaires : ${anRes.error}`, "error");
-          }
-
+        try {
           populateFilters();
           populateFormSelects();
           renderStats();
           renderTable(); // 👈 données affichées même si les graphiques plantent
-
-          try {
-            renderCharts();
-          } catch (chartErr) {
-            console.error("Erreur graphiques:", chartErr);
-          }
         } catch (err) {
-          showToast(err.message || "Impossible de charger les données", "error");
+          showToast(err.message || "Impossible d'afficher les données", "error");
           document.getElementById("tableBody").innerHTML = `
             <tr><td colspan="7" class="text-center text-muted py-5">
               <i class="fa-solid fa-triangle-exclamation fa-lg mb-2 d-block"></i>
               Erreur de chargement des données.
             </td></tr>`;
+        }
+
+        try {
+          renderCharts();
+        } catch (chartErr) {
+          console.error("Erreur graphiques:", chartErr);
         }
       }
 
@@ -874,12 +929,33 @@
         const anneeSelect = document.getElementById("fAnneeSelect");
         anneeSelect.innerHTML = '<option value="">Sélectionner une année…</option>' +
           annees.map((a) => `<option value="${a.id}">${escapeHtml(anneeLabel(a))}</option>`).join("");
+      }
 
+      // Remplit uniquement le <select> des parents à partir du tableau `parents`.
+      // Séparée de populateFormSelects() pour pouvoir être appelée indépendamment
+      // par loadParents(), sans dépendre du reste du formulaire.
+      function populateParentSelect() {
         const parentSelect = document.getElementById("fParentId");
+        if (!parentSelect) return;
         const currentParent = parentSelect.value;
         parentSelect.innerHTML = '<option value="">Sélectionner un parent…</option>' +
           parents.map((p) => `<option value="${p.id}">${escapeHtml(parentFullName(p))}${p.telephone ? " — " + escapeHtml(p.telephone) : ""}</option>`).join("");
         parentSelect.value = currentParent;
+      }
+
+      // Chargement de la liste des parents, ISOLÉ de loadAll().
+      // Ainsi, même si le chargement des élèves/inscriptions/classes/années
+      // échoue (ou est lent), la liste des parents se charge et s'affiche
+      // quand même dans le formulaire "Nouvel élève".
+      async function loadParents() {
+        try {
+          const res = await parentApiCall("");
+          parents = res.data || [];
+          populateParentSelect();
+        } catch (e) {
+          console.error("Erreur chargement parents:", e);
+          showToast(`Parents : ${e.message}`, "error");
+        }
       }
 
       function getSelectedAnneeId() {
@@ -1299,7 +1375,10 @@
         document.getElementById("btnSaveEleveLabel").textContent = "Créer l'élève";
       }
 
-      document.getElementById("btnNouvelEleve").addEventListener("click", resetFormEleve);
+      document.getElementById("btnNouvelEleve").addEventListener("click", () => {
+        resetFormEleve();
+        loadParents(); // s'assure que la liste des parents est à jour à l'ouverture
+      });
 
       function openEditEleveModal(eleveId) {
         const e = eleves.find((x) => x.id === eleveId);
@@ -1406,6 +1485,7 @@
             showToast("Élève créé avec succès.");
           }
           bootstrap.Modal.getInstance(document.getElementById("modalEleve")).hide();
+          await loadEleves();
           await loadAll();
         } catch (err) {
           showToast(err.message || "Une erreur est survenue.", "error");
@@ -1620,7 +1700,9 @@
           await apiCall(path, { method: "DELETE" });
           showToast(deleteTarget.type === "eleve" ? "Élève supprimé avec succès." : "Inscription supprimée avec succès.");
           bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression")).hide();
+          const wasEleve = deleteTarget.type === "eleve";
           deleteTarget = null;
+          if (wasEleve) await loadEleves();
           await loadAll();
         } catch (err) {
           showToast(err.message || "Impossible de supprimer cet élément.", "error");
@@ -1654,9 +1736,258 @@
       });
 
       /* ─────────────────────────────────────────
-         ACTUALISATION / EXPORT
+         IMPRESSION — LISTE DE CLASSE
       ───────────────────────────────────────── */
-      document.getElementById("btnRefresh").addEventListener("click", loadAll);
+      // En-tête de l'établissement, sur le même modèle que l'emploi du temps
+      // (nom de l'établissement + année scolaire). À adapter si besoin.
+      const ETABLISSEMENT = {
+        nom: "LYCÉE BILINGUE DE DEIDO",
+        ville: "DOUALA"
+      };
+
+      function anneeScolaireLabelCourante(anneeId) {
+        const a = annees.find((x) => x.id === anneeId);
+        return a ? anneeLabel(a) : "";
+      }
+
+      function printListeClasse() {
+        const classeId = document.getElementById("filterClasse").value;
+        if (!classeId) {
+          showToast("Veuillez d'abord sélectionner une classe dans les filtres.", "error");
+          return;
+        }
+
+        // Année : celle choisie dans le filtre global, sinon l'année active,
+        // sinon l'année la plus récente disponible.
+        let anneeId = getSelectedAnneeId();
+        if (!anneeId) anneeId = anneeActiveId;
+        if (!anneeId && annees.length) {
+          anneeId = annees.reduce((max, a) => (a.id > max ? a.id : max), annees[0].id);
+        }
+
+        const classeObj = classes.find((c) => String(c.id) === String(classeId));
+
+        // Élèves actuellement dans cette classe pour l'année retenue
+        // (on exclut les transferts et abandons : ils ne sont plus dans l'effectif).
+        const inscrits = inscriptions.filter((i) => {
+          if (String(i.classe_id) !== String(classeId)) return false;
+          if (anneeId && i.annee_scolaire_id !== anneeId) return false;
+          if (i.statut === "Transfere" || i.statut === "Abandon") return false;
+          return true;
+        });
+
+        if (inscrits.length === 0) {
+          showToast("Aucun élève inscrit dans cette classe pour l'année sélectionnée.", "error");
+          return;
+        }
+
+        // Tri alphabétique (nom puis prénom).
+        const lignes = inscrits
+          .map((i) => ({ e: i.eleve || {}, i }))
+          .sort((a, b) => {
+            const nomCmp = (a.e.nom || "").localeCompare(b.e.nom || "", "fr", { sensitivity: "base" });
+            if (nomCmp !== 0) return nomCmp;
+            return (a.e.prenom || "").localeCompare(b.e.prenom || "", "fr", { sensitivity: "base" });
+          });
+
+        const anneeTxt = anneeScolaireLabelCourante(anneeId) || "—";
+        const classeTxt = classeLabel(classeObj) || "—";
+        const dateAujourdhui = new Date().toLocaleDateString("fr-FR");
+
+        const lignesHtml = lignes.map(({ e, i }, idx) => `
+          <tr>
+            <td class="col-no">${idx + 1}</td>
+            <td class="col-matricule">${escapeHtml(e.matricule || "—")}</td>
+            <td class="col-nom">${escapeHtml(`${(e.nom || "").toUpperCase()} ${e.prenom || ""}`.trim())}</td>
+            <td class="col-situation">${i.redoublant ? "Redoublant(e)" : "Non redoublant(e)"}</td>
+          </tr>`).join("");
+
+        const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Liste de classe — ${escapeHtml(classeTxt)}</title>
+<style>
+  @page { size: A4 portrait; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #1a1a1a;
+    margin: 0;
+  }
+  .entete {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+  }
+  .entete-etablissement { line-height: 1.35; }
+  .entete-etablissement .nom {
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .entete-etablissement .ville {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #444;
+  }
+  .logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.1;
+  }
+  .titre-bloc {
+    text-align: center;
+    margin: 14px 0 18px;
+  }
+  .titre-bloc .titre {
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .titre-bloc .annee {
+    font-size: 12px;
+    color: #444;
+    margin-top: 2px;
+  }
+  .infos {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .infos b { text-transform: uppercase; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  thead th {
+    background: #1a1a1a;
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    padding: 7px 6px;
+    text-align: left;
+  }
+  tbody td {
+    border: 1px solid #999;
+    padding: 6px 6px;
+  }
+  tbody tr:nth-child(even) { background: #f5f5f5; }
+  .col-no { width: 8%; text-align: center; }
+  .col-matricule { width: 22%; }
+  .col-nom { width: 45%; }
+  .col-situation { width: 25%; }
+  .pied {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 42px;
+    font-size: 12.5px;
+  }
+  .pied .signature { text-align: center; width: 220px; }
+  .pied .signature .ligne {
+    margin-top: 40px;
+    border-top: 1px solid #1a1a1a;
+    padding-top: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+  .effectif-note {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: #444;
+  }
+</style>
+</head>
+<body>
+  <div class="entete">
+    <div class="entete-etablissement">
+      <div class="nom">${escapeHtml(ETABLISSEMENT.nom)}</div>
+      <div class="ville">${escapeHtml(ETABLISSEMENT.ville)}</div>
+    </div>
+    <div class="logo">${escapeHtml(ETABLISSEMENT.ville)}</div>
+  </div>
+
+  <div class="titre-bloc">
+    <div class="titre">Liste de classe</div>
+    <div class="annee">Année scolaire ${escapeHtml(anneeTxt)}</div>
+  </div>
+
+  <div class="infos">
+    <div>Classe : <b>${escapeHtml(classeTxt)}</b></div>
+    <div>Effectif : <b>${lignes.length}</b></div>
+    <div>Date d'édition : <b>${dateAujourdhui}</b></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="col-no">N°</th>
+        <th class="col-matricule">Matricule</th>
+        <th class="col-nom">Nom et prénoms</th>
+        <th class="col-situation">Situation</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lignesHtml}
+    </tbody>
+  </table>
+
+  <div class="pied">
+    <div class="signature">
+      <div class="ligne">Le Professeur Principal</div>
+    </div>
+    <div class="signature">
+      <div class="ligne">Le Censeur</div>
+    </div>
+    <div class="signature">
+      <div class="ligne">Le Proviseur</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        const fenetre = window.open("", "_blank");
+        if (!fenetre) {
+          showToast("Le navigateur a bloqué l'ouverture de la fenêtre d'impression.", "error");
+          return;
+        }
+        fenetre.document.open();
+        fenetre.document.write(html);
+        fenetre.document.close();
+        fenetre.onload = () => {
+          fenetre.focus();
+          fenetre.print();
+        };
+      }
+
+      document.getElementById("btnImprimerListe").addEventListener("click", printListeClasse);
+
+
+      document.getElementById("btnRefresh").addEventListener("click", () => {
+        // Même logique qu'à l'init : ces trois chargements sont indépendants
+        // de loadAll() et continuent même si loadAll() plante.
+        loadEleves().catch((e) => console.error("loadEleves a échoué:", e));
+        loadClasses().catch((e) => console.error("loadClasses a échoué:", e));
+        loadAnneesScolaires().catch((e) => console.error("loadAnneesScolaires a échoué:", e));
+        loadAll();
+      });
 
       document.getElementById("btnExportCsv").addEventListener("click", () => {
         const list = getFilteredInscriptions();
@@ -1688,7 +2019,16 @@
       function init() {
         document.getElementById("modalEleve").addEventListener("hidden.bs.modal", resetFormEleve);
         document.getElementById("modalInscription").addEventListener("hidden.bs.modal", resetFormInscription);
+        // Appels indépendants : un échec (ou un plantage) de l'un de ces
+        // chargements ne bloque plus les autres. En particulier, élèves,
+        // classes et années scolaires sont isolés de loadAll() : même si
+        // loadAll() plante, ces trois listes se chargent et s'affichent
+        // quand même.
+        loadEleves().catch((e) => console.error("loadEleves a échoué:", e));
+        loadClasses().catch((e) => console.error("loadClasses a échoué:", e));
+        loadAnneesScolaires().catch((e) => console.error("loadAnneesScolaires a échoué:", e));
         loadAll();
+        loadParents();
       }
 
       if (document.readyState === "loading") {
