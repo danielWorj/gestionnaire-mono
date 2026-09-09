@@ -205,32 +205,38 @@ def get_situation_financiere(inscription_id, annee_scolaire_id, classe_id):
 def create_paiement():
     """Enregistrer un nouveau paiement.
 
-    Un paiement couvre au minimum une tranche et au maximum n tranches, via
-    le champ 'tranches' :
+    Un paiement n'est pas obligé de couvrir une tranche précise :
     {
         'inscription_id': int,
         'montant_verse': nombre,
         'date_paiement': date (optionnel),
         'mode_paiement': str (optionnel),
-        'tranches': [
+        'tranches': [                              # optionnel
             {'tranche_paiement_id': int, 'montant_affecte': nombre},
             ...
         ]
     }
-    La somme des montant_affecte doit être égale au montant_verse.
+
+    Si 'tranches' n'est pas fourni, le montant versé est réparti
+    automatiquement sur les tranches impayées de la classe/année de l'élève
+    (dans l'ordre des dates limites) : le surplus au-delà du solde d'une
+    tranche est reporté sur la suivante, et un montant insuffisant reste
+    imputé en totalité à la tranche courante (qui reste partiellement
+    impayée). Si 'tranches' est fourni, cette répartition manuelle est
+    utilisée telle quelle et ne peut pas dépasser le montant versé.
     """
     try:
         data = request.get_json()
 
-        required_fields = ['inscription_id', 'montant_verse', 'tranches']
+        required_fields = ['inscription_id', 'montant_verse']
         for field in required_fields:
             if field not in data:
                 return jsonify({'success': False, 'error': f'Champ {field} requis'}), 400
 
-        if not isinstance(data.get('tranches'), list) or len(data['tranches']) < 1:
+        if 'tranches' in data and data['tranches'] and not isinstance(data['tranches'], list):
             return jsonify({
                 'success': False,
-                'error': "Le champ 'tranches' doit être une liste non vide d'au moins une tranche"
+                'error': "Le champ 'tranches', s'il est fourni, doit être une liste"
             }), 400
 
         paiement = PaiementService.create(data)
@@ -245,15 +251,17 @@ def create_paiement():
 def update_paiement(id):
     """Mettre à jour un paiement.
 
-    Si 'tranches' est fourni, il remplace entièrement la répartition existante
-    et doit rester une liste d'au moins une tranche."""
+    Si 'tranches' est fourni, il remplace entièrement la répartition
+    existante (peut être une liste vide : le paiement devient alors non
+    affecté). Sinon, si 'montant_verse' change, la répartition est
+    recalculée automatiquement si besoin (voir PaiementService.update)."""
     try:
         data = request.get_json()
 
-        if 'tranches' in data and (not isinstance(data['tranches'], list) or len(data['tranches']) < 1):
+        if 'tranches' in data and data['tranches'] is not None and not isinstance(data['tranches'], list):
             return jsonify({
                 'success': False,
-                'error': "Le champ 'tranches' doit être une liste non vide d'au moins une tranche"
+                'error': "Le champ 'tranches', s'il est fourni, doit être une liste"
             }), 400
 
         paiement = PaiementService.update(id, data)

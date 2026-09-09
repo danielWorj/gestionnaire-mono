@@ -441,20 +441,19 @@
                   <option value="">-- Choisir un élève --</option>
                 </select>
               </div>
-              <div class="col-12">
-                <label class="form-label d-flex justify-content-between align-items-center">
-                  <span>Tranches couvertes par ce paiement *</span>
-                  <button type="button" class="btn btn-light btn-sm" id="btnAjouterTrancheLigne">
-                    <i class="fa-solid fa-plus"></i> Ajouter une tranche
-                  </button>
-                </label>
-                <div id="paiementTranchesList" class="d-flex flex-column gap-2"></div>
-                <small class="text-muted d-block mt-1">Un paiement peut couvrir une ou plusieurs tranches. Choisissez d'abord l'élève pour voir les tranches de sa classe.</small>
+              <div class="col-12" id="paiementApercuTranches">
+                <label class="form-label">Situation des tranches de l'élève</label>
+                <div id="paiementTranchesApercuList" class="d-flex flex-column gap-1">
+                  <div class="text-muted" style="font-size:12px;">Choisissez d'abord l'élève pour voir ses tranches.</div>
+                </div>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Montant versé (FCFA)</label>
-                <input type="number" class="form-control" id="paiementMontant" min="1" step="1" readonly>
-                <small class="text-muted">Calculé automatiquement (somme des montants affectés aux tranches).</small>
+                <label class="form-label">Montant versé (FCFA) *</label>
+                <input type="number" class="form-control" id="paiementMontant" min="1" step="1" required>
+                <small class="text-muted">
+                  Le montant sera réparti automatiquement sur les tranches impayées, dans l'ordre :
+                  un éventuel surplus passe sur la tranche suivante, un montant insuffisant laisse un reste sur la tranche.
+                </small>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Date du paiement *</label>
@@ -557,7 +556,7 @@
         // Routes réelles ou à adapter selon vos blueprints existants :
         anneesScolaires: "/api/structure/annees-scolaires",
         classes: "/api/structure/classes", // à adapter : doit renvoyer { id, libelle, cycle_libelle, ... }
-        inscriptions: "/api/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: { id, libelle } }
+        inscriptions: "/api/inscription/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: { id, libelle } }
       };
 
       const state = {
@@ -569,8 +568,8 @@
         tranchesTotals: {},   // { trancheId: total_verse }
         paiements: [],
         inscriptions: [],
-        // Répartition en cours de saisie dans le modal Paiement : [{ tranche_paiement_id, montant_affecte }]
-        paiementLignes: []
+        // Tranches (avec solde) de l'élève sélectionné dans le modal Paiement — aperçu informatif
+        paiementTranchesDisponibles: []
       };
 
       let chartRecouvrement = null;
@@ -989,9 +988,9 @@
       document.getElementById("filterClassePaiements").addEventListener("change", renderPaiementsTable);
       document.getElementById("sortPaiements").addEventListener("change", renderPaiementsTable);
 
-      /* ─────────── Répartition d'un paiement sur 1..n tranches ─────────── */
+      /* ─────────── Répartition automatique d'un paiement sur les tranches impayées ─────────── */
 
-      // Tranches de la classe de l'élève sélectionné, disponibles pour la répartition
+      // Tranches de la classe de l'élève sélectionné, avec leur solde restant (aperçu informatif)
       state.paiementTranchesDisponibles = [];
 
       async function chargerTranchesPourInscription(inscriptionId) {
@@ -1002,86 +1001,42 @@
         if (!classeId) return;
         try {
           const payload = await apiFetch(ENDPOINTS.tranchesByAnneeClasse(state.anneeActiveId, classeId));
-          state.paiementTranchesDisponibles = payload.data || [];
+          const tranches = payload.data || [];
+          // Récupère le solde restant de chaque tranche pour CET élève
+          const situation = await apiFetch(ENDPOINTS.situation(inscriptionId, state.anneeActiveId, classeId)).catch(() => null);
+          const soldesParTranche = {};
+          if (situation && situation.data) {
+            situation.data.tranches.forEach(t => { soldesParTranche[t.tranche_id] = t.solde; });
+          }
+          state.paiementTranchesDisponibles = tranches.map(t => ({
+            ...t,
+            solde: soldesParTranche.hasOwnProperty(t.id) ? soldesParTranche[t.id] : t.montant_attendu
+          }));
         } catch (e) {
           state.paiementTranchesDisponibles = [];
         }
       }
 
-      function trancheOptionsHtml(selectedId) {
-        const dejaChoisies = state.paiementLignes
-          .map(l => l.tranche_paiement_id)
-          .filter(id => id && id != selectedId);
-        return state.paiementTranchesDisponibles
-          .filter(t => !dejaChoisies.includes(t.id))
-          .map(t => `<option value="${t.id}" ${t.id == selectedId ? "selected" : ""}>${escapeHtml(t.libelle)} — ${formatMontant(t.montant_attendu)}</option>`)
-          .join("");
-      }
-
-      function renderPaiementTranchesRows() {
-        const container = document.getElementById("paiementTranchesList");
-        if (!state.paiementLignes.length) {
-          container.innerHTML = `<div class="text-muted" style="font-size:12px;">Aucune tranche ajoutée. Cliquez sur « Ajouter une tranche ».</div>`;
-        } else {
-          container.innerHTML = state.paiementLignes.map((ligne, index) => `
-            <div class="paiement-tranche-ligne" data-index="${index}">
-              <select class="form-select form-select-sm js-ligne-tranche">
-                <option value="">-- Choisir une tranche --</option>
-                ${trancheOptionsHtml(ligne.tranche_paiement_id)}
-              </select>
-              <input type="number" class="form-control form-control-sm montant-affecte js-ligne-montant" min="1" step="1"
-                     placeholder="Montant" value="${ligne.montant_affecte || ""}">
-              <button type="button" class="btn btn-icon btn-sm btn-light btn-remove-ligne js-ligne-remove" title="Retirer">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>`).join("");
-        }
-
-        container.querySelectorAll(".js-ligne-tranche").forEach((sel, i) => {
-          sel.addEventListener("change", (e) => {
-            state.paiementLignes[i].tranche_paiement_id = e.target.value ? Number(e.target.value) : null;
-            renderPaiementTranchesRows();
-            recalculerMontantTotal();
-          });
-        });
-        container.querySelectorAll(".js-ligne-montant").forEach((input, i) => {
-          input.addEventListener("input", (e) => {
-            state.paiementLignes[i].montant_affecte = e.target.value;
-            recalculerMontantTotal();
-          });
-        });
-        container.querySelectorAll(".js-ligne-remove").forEach((btn, i) => {
-          btn.addEventListener("click", () => {
-            state.paiementLignes.splice(i, 1);
-            renderPaiementTranchesRows();
-            recalculerMontantTotal();
-          });
-        });
-      }
-
-      function recalculerMontantTotal() {
-        const total = state.paiementLignes.reduce((sum, l) => sum + (Number(l.montant_affecte) || 0), 0);
-        document.getElementById("paiementMontant").value = total > 0 ? total : "";
-      }
-
-      document.getElementById("btnAjouterTrancheLigne").addEventListener("click", () => {
+      function renderPaiementTranchesApercu() {
+        const container = document.getElementById("paiementTranchesApercuList");
         if (!state.paiementTranchesDisponibles.length) {
-          showToast("Choisissez d'abord un élève : les tranches dépendent de sa classe.", "error");
+          container.innerHTML = `<div class="text-muted" style="font-size:12px;">Choisissez d'abord l'élève pour voir ses tranches.</div>`;
           return;
         }
-        state.paiementLignes.push({ tranche_paiement_id: null, montant_affecte: "" });
-        renderPaiementTranchesRows();
-      });
+        container.innerHTML = state.paiementTranchesDisponibles.map(t => {
+          const solde = Number(t.solde || 0);
+          const solde_class = solde > 0 ? "solde-negatif" : "solde-positif";
+          return `
+            <div class="d-flex justify-content-between align-items-center" style="font-size:12px;">
+              <span>${escapeHtml(t.libelle)}</span>
+              <span class="${solde_class}">${solde > 0 ? "Reste " + formatMontant(solde) : "Soldée"}</span>
+            </div>`;
+        }).join("");
+      }
 
       document.getElementById("paiementInscription").addEventListener("change", async (e) => {
-        state.paiementLignes = [];
-        renderPaiementTranchesRows();
-        recalculerMontantTotal();
         await chargerTranchesPourInscription(e.target.value);
-        if (state.paiementTranchesDisponibles.length) {
-          state.paiementLignes.push({ tranche_paiement_id: null, montant_affecte: "" });
-          renderPaiementTranchesRows();
-        }
+        renderPaiementTranchesApercu();
       });
 
       function resetPaiementForm() {
@@ -1089,9 +1044,8 @@
         document.getElementById("paiementFormError").classList.add("d-none");
         document.getElementById("paiementId").value = "";
         document.getElementById("paiementDate").value = new Date().toISOString().slice(0, 10);
-        state.paiementLignes = [];
         state.paiementTranchesDisponibles = [];
-        renderPaiementTranchesRows();
+        renderPaiementTranchesApercu();
       }
 
       document.getElementById("modalPaiement").addEventListener("show.bs.modal", resetPaiementForm);
@@ -1103,35 +1057,44 @@
         const inscriptionId = Number(document.getElementById("paiementInscription").value);
         const dateVal = document.getElementById("paiementDate").value;
         const modeVal = document.getElementById("paiementMode").value || null;
-
-        const tranches = state.paiementLignes
-          .filter(l => l.tranche_paiement_id && Number(l.montant_affecte) > 0)
-          .map(l => ({ tranche_paiement_id: l.tranche_paiement_id, montant_affecte: Number(l.montant_affecte) }));
-
-        const montantVerse = tranches.reduce((sum, t) => sum + t.montant_affecte, 0);
+        const montantVerse = Number(document.getElementById("paiementMontant").value);
 
         if (!inscriptionId || !dateVal) {
           errorBox.textContent = "Veuillez renseigner l'élève et la date du paiement.";
           errorBox.classList.remove("d-none");
           return;
         }
-        if (tranches.length < 1) {
-          errorBox.textContent = "Un paiement doit couvrir au moins une tranche (avec un montant affecté positif).";
+        if (!montantVerse || montantVerse <= 0) {
+          errorBox.textContent = "Veuillez renseigner un montant versé positif.";
           errorBox.classList.remove("d-none");
           return;
         }
 
+        // Pas de champ 'tranches' : le serveur répartit automatiquement le
+        // montant sur les tranches impayées de l'élève, dans l'ordre des
+        // dates limites (surplus reporté sur la suivante, sinon reste sur
+        // la tranche courante). Un paiement n'est pas obligé de couvrir une
+        // tranche : si toutes sont soldées, le montant reste non affecté.
         const data = {
           inscription_id: inscriptionId,
           montant_verse: montantVerse,
           date_paiement: dateVal,
-          mode_paiement: modeVal,
-          tranches
+          mode_paiement: modeVal
         };
 
         try {
-          await apiFetch(ENDPOINTS.paiements, { method: "POST", body: JSON.stringify(data) });
-          showToast("Paiement enregistré avec succès.");
+          const result = await apiFetch(ENDPOINTS.paiements, { method: "POST", body: JSON.stringify(data) });
+          const paiement = result.data;
+          const lignes = (paiement.tranches || [])
+            .map(l => `${l.tranche_paiement ? l.tranche_paiement.libelle : "?"} : ${formatMontant(l.montant_affecte)}`);
+          let message = "Paiement enregistré avec succès.";
+          if (lignes.length) {
+            message += " Répartition — " + lignes.join(", ") + ".";
+          }
+          if (paiement.montant_non_affecte > 0) {
+            message += ` Reste non affecté : ${formatMontant(paiement.montant_non_affecte)}.`;
+          }
+          showToast(message);
           bootstrap.Modal.getInstance(document.getElementById("modalPaiement")).hide();
           await loadPaiements();
           await loadTranches();

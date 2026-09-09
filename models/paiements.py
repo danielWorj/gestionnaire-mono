@@ -1,6 +1,5 @@
 from models import db
 from sqlalchemy.orm import validates
-from sqlalchemy import event
 from datetime import datetime
 
 
@@ -68,9 +67,11 @@ class TranchePaiement(db.Model):
 class Paiement(db.Model):
     """Paiement effectué par un élève (inscription).
 
-    Un paiement peut couvrir une ou plusieurs tranches (au minimum 1, au maximum
-    n). La répartition du montant versé entre les tranches couvertes est portée
-    par la table d'association PaiementTranche.
+    Un paiement n'est pas obligé de couvrir une tranche précise : il peut
+    rester totalement ou partiellement non affecté. Quand il est réparti, la
+    répartition entre les tranches couvertes est portée par la table
+    d'association PaiementTranche. La somme des montants affectés ne peut
+    jamais dépasser le montant versé (montant_alloue <= montant_verse).
     """
     __tablename__ = 'paiement'
 
@@ -109,11 +110,20 @@ class Paiement(db.Model):
         """Somme des montants affectés aux tranches liées à ce paiement."""
         return sum((float(pt.montant_affecte) for pt in self.tranches), 0.0)
 
+    @property
+    def montant_non_affecte(self):
+        """Part du montant versé qui n'est affectée à aucune tranche (paiement
+        libre, ou surplus restant une fois toutes les tranches soldées)."""
+        montant_verse = float(self.montant_verse) if self.montant_verse is not None else 0.0
+        return max(montant_verse - self.montant_alloue, 0.0)
+
     def to_dict(self, with_relations=True):
         data = {
             'id': self.id,
             'inscription_id': self.inscription_id,
             'montant_verse': float(self.montant_verse) if self.montant_verse is not None else None,
+            'montant_alloue': self.montant_alloue,
+            'montant_non_affecte': self.montant_non_affecte,
             'date_paiement': self.date_paiement.isoformat() if self.date_paiement else None,
             'mode_paiement': self.mode_paiement,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -163,11 +173,3 @@ class PaiementTranche(db.Model):
         if with_tranche and self.tranche_paiement:
             data['tranche_paiement'] = self.tranche_paiement.to_dict()
         return data
-
-
-@event.listens_for(Paiement, 'before_insert')
-@event.listens_for(Paiement, 'before_update')
-def _valider_couverture_tranches(mapper, connection, paiement):
-    """Un paiement doit couvrir au moins une tranche (au maximum n, sans limite haute)."""
-    if len(paiement.tranches) < 1:
-        raise ValueError("Un paiement doit être affecté à au moins une tranche de paiement")

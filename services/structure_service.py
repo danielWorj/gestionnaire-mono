@@ -2,8 +2,17 @@ from models.structure import (
     db, Etablissement, AnneeScolaire, Trimestre, 
     Sequence, Cycle, Classe
 )
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy.exc import IntegrityError
+
+
+def _parse_date(value):
+    """Convertit une chaîne 'YYYY-MM-DD' (ou un objet date déjà valide) en date Python."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, str):
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    return value  # déjà un objet date
 
 
 class EtablissementService:
@@ -82,8 +91,8 @@ class AnneeScolaireService:
         annee = AnneeScolaire(
             libelle=data['libelle'],
             active=data.get('active', False),
-            date_debut=data.get('date_debut'),
-            date_fin=data.get('date_fin')
+            date_debut=_parse_date(data.get('date_debut')),
+            date_fin=_parse_date(data.get('date_fin'))
         )
         
         db.session.add(annee)
@@ -103,8 +112,8 @@ class AnneeScolaireService:
         
         annee.libelle = data.get('libelle', annee.libelle)
         annee.active = data.get('active', annee.active)
-        annee.date_debut = data.get('date_debut', annee.date_debut)
-        annee.date_fin = data.get('date_fin', annee.date_fin)
+        annee.date_debut = _parse_date(data.get('date_debut', annee.date_debut))
+        annee.date_fin = _parse_date(data.get('date_fin', annee.date_fin))
         
         db.session.commit()
         return annee
@@ -161,8 +170,8 @@ class TrimestreService:
             annee_scolaire_id=data['annee_scolaire_id'],
             libelle=data['libelle'],
             numero=data['numero'],
-            date_debut=data.get('date_debut'),
-            date_fin=data.get('date_fin')
+            date_debut=_parse_date(data.get('date_debut')),
+            date_fin=_parse_date(data.get('date_fin'))
         )
         
         db.session.add(trimestre)
@@ -177,8 +186,8 @@ class TrimestreService:
             raise ValueError("Trimestre non trouvé")
         
         trimestre.libelle = data.get('libelle', trimestre.libelle)
-        trimestre.date_debut = data.get('date_debut', trimestre.date_debut)
-        trimestre.date_fin = data.get('date_fin', trimestre.date_fin)
+        trimestre.date_debut = _parse_date(data.get('date_debut', trimestre.date_debut))
+        trimestre.date_fin = _parse_date(data.get('date_fin', trimestre.date_fin))
         
         db.session.commit()
         return trimestre
@@ -225,8 +234,8 @@ class SequenceService:
             trimestre_id=data['trimestre_id'],
             libelle=data['libelle'],
             numero=data['numero'],
-            date_debut=data.get('date_debut'),
-            date_fin=data.get('date_fin')
+            date_debut=_parse_date(data.get('date_debut')),
+            date_fin=_parse_date(data.get('date_fin'))
         )
         
         db.session.add(sequence)
@@ -241,8 +250,8 @@ class SequenceService:
             raise ValueError("Séquence non trouvée")
         
         sequence.libelle = data.get('libelle', sequence.libelle)
-        sequence.date_debut = data.get('date_debut', sequence.date_debut)
-        sequence.date_fin = data.get('date_fin', sequence.date_fin)
+        sequence.date_debut = _parse_date(data.get('date_debut', sequence.date_debut))
+        sequence.date_fin = _parse_date(data.get('date_fin', sequence.date_fin))
         
         db.session.commit()
         return sequence

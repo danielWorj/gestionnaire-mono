@@ -182,6 +182,71 @@ class PaiementService:
     # ---------- Helpers internes ----------
 
     @staticmethod
+    def _solde_tranche_pour_inscription(inscription_id, tranche, paiement_id_a_exclure=None):
+        """Solde restant dû sur une tranche donnée, pour un élève (inscription) donné.
+
+        paiement_id_a_exclure permet, lors de la mise à jour d'un paiement
+        existant, de ne pas compter sa propre répartition actuelle comme
+        "déjà versé" (sinon on se doublerait avec le nouveau montant à
+        répartir).
+        """
+        query = db.session.query(func.sum(PaiementTranche.montant_affecte)).join(Paiement).filter(
+            Paiement.inscription_id == inscription_id,
+            PaiementTranche.tranche_paiement_id == tranche.id
+        )
+        if paiement_id_a_exclure is not None:
+            query = query.filter(Paiement.id != paiement_id_a_exclure)
+        deja_verse = query.scalar()
+        deja_verse = Decimal(str(deja_verse)) if deja_verse else Decimal('0')
+        return tranche.montant_attendu - deja_verse
+
+    @staticmethod
+    def _repartir_automatiquement(inscription, montant_verse, paiement_id_a_exclure=None):
+        """Répartit automatiquement un montant versé sur les tranches impayées
+        de la classe/année de l'élève, dans l'ordre des dates limites.
+
+        Règles :
+        - Si le montant est inférieur (ou égal) au solde de la tranche courante,
+          il est entièrement affecté à cette tranche (qui reste partiellement
+          impayée) : le reste ne va PAS sur la tranche suivante.
+        - Si le montant dépasse le solde de la tranche courante, seule la part
+          correspondant au solde lui est affectée ; le surplus est reporté sur
+          la tranche suivante non soldée (dans l'ordre des dates limites), et
+          ainsi de suite.
+        - S'il ne reste plus de tranche non soldée alors qu'il reste un
+          surplus, celui-ci n'est affecté à aucune tranche (un paiement n'est
+          pas obligé de couvrir une tranche : le surplus reste "non affecté").
+
+        Retourne (lignes, reste_non_affecte) où lignes est une liste de
+        tuples (tranche_paiement_id, Decimal montant_affecte).
+        """
+        tranches = TranchePaiement.query.filter_by(
+            annee_scolaire_id=inscription.annee_scolaire_id,
+            classe_id=inscription.classe_id
+        ).order_by(
+            TranchePaiement.date_limite.is_(None), TranchePaiement.date_limite, TranchePaiement.id
+        ).all()
+
+        reste = montant_verse
+        lignes = []
+
+        for tranche in tranches:
+            if reste <= 0:
+                break
+
+            solde = PaiementService._solde_tranche_pour_inscription(
+                inscription.id, tranche, paiement_id_a_exclure=paiement_id_a_exclure
+            )
+            if solde <= 0:
+                continue  # tranche déjà soldée, on passe à la suivante
+
+            montant_affecte = min(reste, solde)
+            lignes.append((tranche.id, montant_affecte))
+            reste -= montant_affecte
+
+        return lignes, reste
+
+    @staticmethod
     def _construire_lignes_tranches(tranches_data):
         """Valide et construit les lignes de répartition (tranche, montant).
 
@@ -227,7 +292,7 @@ class PaiementService:
 
     @staticmethod
     def create(data):
-        """Crée un paiement et sa répartition sur une ou plusieurs tranches.
+        """Crée un paiement, et répartit le montant versé sur les tranches.
 
         data attendu:
         {
@@ -235,13 +300,22 @@ class PaiementService:
             'montant_verse': nombre,
             'date_paiement': date (optionnel),
             'mode_paiement': str (optionnel),
-            'tranches': [
+            'tranches': [                              # optionnel
                 {'tranche_paiement_id': int, 'montant_affecte': nombre},
                 ...
-            ]  # au moins 1 ligne, au maximum n
+            ]
         }
 
-        La somme des montant_affecte doit être égale au montant_verse.
+        Un paiement n'est pas obligé de couvrir une tranche :
+        - Si 'tranches' est fourni explicitement, cette répartition manuelle
+          est utilisée telle quelle (la somme ne doit pas dépasser
+          montant_verse ; un reliquat éventuel reste non affecté).
+        - Sinon (cas normal), le montant est réparti automatiquement sur les
+          tranches impayées de la classe/année de l'élève, dans l'ordre des
+          dates limites : si le montant dépasse le solde de la tranche
+          courante, le surplus est reporté sur la tranche suivante ; s'il est
+          inférieur, il est affecté en totalité à la tranche (qui reste
+          partiellement impayée) et le reste n'est pas reporté.
         """
         try:
             try:
@@ -252,14 +326,27 @@ class PaiementService:
             if montant_verse <= 0:
                 raise ValueError("Le montant versé doit être positif")
 
-            lignes, total_affecte = PaiementService._construire_lignes_tranches(
-                data.get('tranches') or []
-            )
+            if not data.get('inscription_id'):
+                raise ValueError("L'élève (inscription) est requis")
 
-            if total_affecte != montant_verse:
-                raise ValueError(
-                    f"La somme des montants affectés aux tranches ({total_affecte}) "
-                    f"doit être égale au montant versé ({montant_verse})"
+            from models.inscription import Inscription
+            inscription = Inscription.query.get(data['inscription_id'])
+            if not inscription:
+                raise ValueError("Inscription introuvable")
+
+            tranches_data = data.get('tranches')
+            if tranches_data:
+                # Répartition manuelle explicite
+                lignes, total_affecte = PaiementService._construire_lignes_tranches(tranches_data)
+                if total_affecte > montant_verse:
+                    raise ValueError(
+                        f"La somme des montants affectés aux tranches ({total_affecte}) "
+                        f"ne peut pas dépasser le montant versé ({montant_verse})"
+                    )
+            else:
+                # Répartition automatique sur les tranches impayées
+                lignes, _reste_non_affecte = PaiementService._repartir_automatiquement(
+                    inscription, montant_verse
                 )
 
             paiement = Paiement(
@@ -286,15 +373,22 @@ class PaiementService:
     def update(id, data):
         """Met à jour un paiement.
 
-        Si 'tranches' est fourni dans data, la répartition existante est
-        entièrement remplacée par la nouvelle liste (toujours au moins 1
-        tranche), et doit correspondre au montant_verse final.
+        Un paiement n'est pas obligé de couvrir une tranche.
+        - Si 'tranches' est fourni explicitement dans data, il remplace
+          entièrement la répartition existante (la somme ne doit pas dépasser
+          montant_verse).
+        - Si 'montant_verse' change sans qu'une répartition explicite ne soit
+          fournie, la répartition est recalculée automatiquement sur les
+          tranches impayées (même logique que pour la création), sauf si
+          l'ancienne répartition tient toujours dans le nouveau montant (elle
+          est alors conservée telle quelle).
         """
         paiement = Paiement.query.get(id)
         if not paiement:
             return None
 
         try:
+            montant_change = False
             if 'montant_verse' in data:
                 try:
                     montant_verse = Decimal(str(data['montant_verse']))
@@ -303,6 +397,7 @@ class PaiementService:
                 if montant_verse <= 0:
                     raise ValueError("Le montant versé doit être positif")
                 paiement.montant_verse = montant_verse
+                montant_change = True
 
             if 'date_paiement' in data:
                 paiement.date_paiement = data['date_paiement']
@@ -314,27 +409,42 @@ class PaiementService:
                 lignes, total_affecte = PaiementService._construire_lignes_tranches(
                     data['tranches'] or []
                 )
-
-                if total_affecte != paiement.montant_verse:
+                if total_affecte > paiement.montant_verse:
                     raise ValueError(
                         f"La somme des montants affectés aux tranches ({total_affecte}) "
-                        f"doit être égale au montant versé ({paiement.montant_verse})"
+                        f"ne peut pas dépasser le montant versé ({paiement.montant_verse})"
                     )
+                # Remplace entièrement l'ancienne répartition. On vide et on
+                # flush avant de réinsérer, sinon SQLAlchemy peut tenter
+                # d'insérer les nouvelles lignes avant d'avoir supprimé les
+                # anciennes, ce qui viole la contrainte d'unicité
+                # (paiement_id, tranche_paiement_id) quand une même tranche
+                # réapparaît dans la nouvelle répartition.
+                paiement.tranches = []
+                db.session.flush()
+                for tranche_id, montant_affecte in lignes:
+                    paiement.tranches.append(PaiementTranche(
+                        tranche_paiement_id=tranche_id, montant_affecte=montant_affecte
+                    ))
 
-                # Remplace entièrement l'ancienne répartition
-                paiement.tranches = [
-                    PaiementTranche(tranche_paiement_id=tranche_id, montant_affecte=montant_affecte)
-                    for tranche_id, montant_affecte in lignes
-                ]
-
-            elif 'montant_verse' in data:
-                # Le montant a changé sans nouvelle répartition fournie :
-                # on vérifie que l'ancienne répartition reste cohérente.
-                if Decimal(str(paiement.montant_alloue)) != paiement.montant_verse:
-                    raise ValueError(
-                        "Le nouveau montant versé ne correspond plus à la répartition actuelle "
-                        "des tranches ; veuillez fournir une nouvelle répartition ('tranches')"
+            elif montant_change:
+                ancien_total = Decimal(str(paiement.montant_alloue))
+                if ancien_total > paiement.montant_verse:
+                    # L'ancienne répartition ne tient plus dans le nouveau montant
+                    # (plus faible) : on la recalcule automatiquement.
+                    from models.inscription import Inscription
+                    inscription = Inscription.query.get(paiement.inscription_id)
+                    lignes, _reste = PaiementService._repartir_automatiquement(
+                        inscription, paiement.montant_verse, paiement_id_a_exclure=paiement.id
                     )
+                    paiement.tranches = []
+                    db.session.flush()
+                    for tranche_id, montant_affecte in lignes:
+                        paiement.tranches.append(PaiementTranche(
+                            tranche_paiement_id=tranche_id, montant_affecte=montant_affecte
+                        ))
+                # Si le nouveau montant est supérieur, on garde la répartition
+                # actuelle telle quelle (le surplus reste simplement non affecté).
 
             db.session.commit()
             return paiement
