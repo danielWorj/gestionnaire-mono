@@ -3,7 +3,35 @@ from models import db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, date
+
+
+def _parse_date(value):
+    """Convertit une valeur reçue (string ISO 'YYYY-MM-DD', date, datetime ou
+    None) en objet `datetime.date`, seul type accepté par la colonne SQLite
+    `db.Date`. Lève une ValueError explicite si le format est invalide.
+
+    - None -> None (le champ reste vide, ex: date_limite optionnelle)
+    - date -> renvoyé tel quel
+    - datetime -> converti en date (on ignore l'heure)
+    - str -> parsé en ISO 8601 (ex: '2026-11-09'), tolère aussi un suffixe
+      horaire ('2026-11-09T00:00:00') envoyé par certains inputs HTML/JS
+    """
+    if value is None or value == '':
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            # gère à la fois 'YYYY-MM-DD' et 'YYYY-MM-DDTHH:MM:SS'
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            raise ValueError(
+                f"Format de date invalide : '{value}' (attendu : AAAA-MM-JJ)"
+            )
+    raise ValueError(f"Type de date non supporté : {type(value).__name__}")
 
 
 # ==================== TRANCHE DE PAIEMENT ====================
@@ -62,7 +90,7 @@ class TranchePaiementService:
                 classe_id=data['classe_id'],
                 libelle=data['libelle'],
                 montant_attendu=montant_attendu,
-                date_limite=data.get('date_limite')
+                date_limite=_parse_date(data.get('date_limite'))
             )
             db.session.add(tranche)
             db.session.commit()
@@ -94,7 +122,7 @@ class TranchePaiementService:
                 tranche.montant_attendu = montant_attendu
 
             if 'date_limite' in data:
-                tranche.date_limite = data['date_limite']
+                tranche.date_limite = _parse_date(data['date_limite'])
 
             if 'annee_scolaire_id' in data:
                 tranche.annee_scolaire_id = data['annee_scolaire_id']
@@ -349,10 +377,12 @@ class PaiementService:
                     inscription, montant_verse
                 )
 
+            date_paiement = _parse_date(data.get('date_paiement')) or datetime.utcnow().date()
+
             paiement = Paiement(
                 inscription_id=data['inscription_id'],
                 montant_verse=montant_verse,
-                date_paiement=data.get('date_paiement', datetime.utcnow().date()),
+                date_paiement=date_paiement,
                 mode_paiement=data.get('mode_paiement')
             )
 
@@ -400,7 +430,7 @@ class PaiementService:
                 montant_change = True
 
             if 'date_paiement' in data:
-                paiement.date_paiement = data['date_paiement']
+                paiement.date_paiement = _parse_date(data['date_paiement'])
 
             if 'mode_paiement' in data:
                 paiement.mode_paiement = data['mode_paiement']

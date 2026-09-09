@@ -559,6 +559,14 @@
         inscriptions: "/api/inscription/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: { id, libelle } }
       };
 
+      // Coordonnées affichées en en-tête du reçu de paiement — à adapter à votre établissement.
+      const ETABLISSEMENT = {
+        nom: "Établissement scolaire",
+        adresse: "Douala, Cameroun",
+        telephone: "",
+        email: ""
+      };
+
       const state = {
         annees: [],
         anneeActiveId: null,
@@ -976,17 +984,216 @@
               <td>${formatDate(p.date_paiement)}</td>
               <td>${p.mode_paiement ? `<span class="badge badge-neutral">${escapeHtml(p.mode_paiement)}</span>` : '<span class="text-muted">—</span>'}</td>
               <td class="text-end">
+                <button class="btn btn-icon btn-sm btn-light js-print-recu" data-id="${p.id}" title="Générer le reçu"><i class="fa-solid fa-receipt text-primary"></i></button>
                 <button class="btn btn-icon btn-sm btn-light js-delete-paiement" data-id="${p.id}" title="Supprimer"><i class="fa-solid fa-trash text-danger"></i></button>
               </td>
             </tr>`;
         }).join("");
 
         tbody.querySelectorAll(".js-delete-paiement").forEach(btn => btn.addEventListener("click", () => confirmDeletePaiement(btn.dataset.id)));
+        tbody.querySelectorAll(".js-print-recu").forEach(btn => btn.addEventListener("click", () => imprimerRecuPaiement(btn.dataset.id)));
       }
 
       document.getElementById("filterTranchePaiements").addEventListener("change", loadPaiements);
       document.getElementById("filterClassePaiements").addEventListener("change", renderPaiementsTable);
       document.getElementById("sortPaiements").addEventListener("change", renderPaiementsTable);
+
+      /* ═══════════════════════════════════════
+         REÇU DE PAIEMENT (impression / export PDF)
+         Le reçu s'ouvre dans un nouvel onglet et déclenche
+         automatiquement la boîte de dialogue d'impression du
+         navigateur — l'utilisateur choisit "Enregistrer en PDF"
+         comme destination pour obtenir un fichier PDF.
+      ═══════════════════════════════════════ */
+
+      // Conversion d'un nombre entier en toutes lettres (français), utilisée
+      // pour la mention "Arrêté le présent reçu à la somme de …" du reçu.
+      const UNITES = ["", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf",
+        "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize", "dix-sept", "dix-huit", "dix-neuf"];
+      const DIZAINES = ["", "", "vingt", "trente", "quarante", "cinquante", "soixante", "soixante", "quatre-vingt", "quatre-vingt"];
+
+      function trancheMoinsDeCent(n) {
+        if (n < 20) return UNITES[n];
+        const d = Math.floor(n / 10);
+        const u = n % 10;
+        if (d === 7 || d === 9) {
+          const reste = 10 + u;
+          const liaison = (u === 1) ? "-et-" : "-";
+          return DIZAINES[d] + liaison + UNITES[reste];
+        }
+        if (u === 0) return DIZAINES[d] + (d === 8 ? "s" : "");
+        if (u === 1 && d !== 8) return DIZAINES[d] + "-et-un";
+        return DIZAINES[d] + "-" + UNITES[u];
+      }
+
+      function trancheMoinsDeMille(n) {
+        const c = Math.floor(n / 100);
+        const reste = n % 100;
+        let mots = "";
+        if (c > 0) mots += (c === 1 ? "cent" : UNITES[c] + " cent") + (c > 1 && reste === 0 ? "s" : "");
+        if (reste > 0) mots += (mots ? " " : "") + trancheMoinsDeCent(reste);
+        return mots;
+      }
+
+      function nombreEnLettres(nombre) {
+        let n = Math.round(Math.abs(Number(nombre) || 0));
+        if (n === 0) return "zéro";
+        const groupes = [
+          { valeur: 1000000000, mot: "milliard" },
+          { valeur: 1000000, mot: "million" },
+          { valeur: 1000, mot: "mille" }
+        ];
+        let mots = [];
+        groupes.forEach((g) => {
+          const q = Math.floor(n / g.valeur);
+          if (q > 0) {
+            if (g.mot === "mille" && q === 1) {
+              mots.push("mille");
+            } else {
+              mots.push(trancheMoinsDeMille(q) + " " + g.mot + (q > 1 ? "s" : ""));
+            }
+            n %= g.valeur;
+          }
+        });
+        if (n > 0) mots.push(trancheMoinsDeMille(n));
+        return mots.join(" ").replace(/\s+/g, " ").trim();
+      }
+
+      function montantEnLettres(v) {
+        const mots = nombreEnLettres(v);
+        return mots.charAt(0).toUpperCase() + mots.slice(1) + " francs CFA";
+      }
+
+      function genererRecuHtml(paiement) {
+        const nomEleve = paiement.eleve
+          ? `${paiement.eleve.nom || ""} ${paiement.eleve.prenom || ""}`.trim()
+          : `Inscription #${paiement.inscription_id}`;
+        const classesIds = classeIdsDuPaiement(paiement);
+        const classeLabel = classesIds.length ? classesIds.map(id => classeLibelle(id)).join(", ") : "—";
+        const lignes = paiement.tranches || [];
+        const numeroRecu = `REC-${String(paiement.id).padStart(6, "0")}`;
+        const dateEmission = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+
+        const lignesHtml = lignes.length
+          ? lignes.map(l => `
+              <tr>
+                <td>${escapeHtml(l.tranche_paiement ? l.tranche_paiement.libelle : "—")}</td>
+                <td style="text-align:right;">${formatMontant(l.montant_affecte)}</td>
+              </tr>`).join("")
+          : `<tr><td colspan="2" style="text-align:center;color:#9CA3AF;">Aucune tranche affectée</td></tr>`;
+
+        const nonAffecteHtml = Number(paiement.montant_non_affecte || 0) > 0
+          ? `<tr><td>Montant non affecté</td><td style="text-align:right;">${formatMontant(paiement.montant_non_affecte)}</td></tr>`
+          : "";
+
+        return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Reçu ${numeroRecu}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1F2937; margin: 0; padding: 32px; background: #F3F4F6; }
+  .recu { max-width: 620px; margin: 0 auto; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; padding: 28px 32px; }
+  .en-tete { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1F2937; padding-bottom: 14px; margin-bottom: 18px; }
+  .en-tete h1 { font-size: 16px; margin: 0 0 2px; }
+  .en-tete p { font-size: 11px; color: #6B7280; margin: 0; }
+  .titre-recu { text-align: right; }
+  .titre-recu h2 { font-size: 18px; margin: 0; letter-spacing: .04em; }
+  .titre-recu p { font-size: 11px; color: #6B7280; margin: 2px 0 0; }
+  .infos { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px 20px; margin-bottom: 18px; font-size: 12.5px; }
+  .infos div { flex: 1 1 40%; }
+  .infos .label { font-size: 10px; text-transform: uppercase; color: #6B7280; letter-spacing: .04em; margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12.5px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid #E5E7EB; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: #6B7280; letter-spacing: .03em; }
+  tfoot td { font-weight: 700; border-top: 2px solid #1F2937; border-bottom: none; }
+  .montant-lettres { font-size: 12px; font-style: italic; color: #374151; margin: 10px 0 22px; padding: 10px 12px; background: #F9FAFB; border-radius: 6px; }
+  .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-size: 11.5px; }
+  .signatures div { text-align: center; width: 45%; }
+  .signatures .ligne { margin-top: 40px; border-top: 1px solid #9CA3AF; padding-top: 4px; color: #6B7280; }
+  .pied { text-align: center; font-size: 10px; color: #9CA3AF; margin-top: 24px; }
+  .no-print { text-align: center; margin-top: 18px; }
+  .no-print button { font: inherit; padding: 8px 16px; border: 1px solid #D1D5DB; border-radius: 6px; background: #fff; cursor: pointer; }
+  @media print {
+    body { padding: 0; background: #fff; }
+    .recu { border: none; max-width: none; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="recu">
+    <div class="en-tete">
+      <div>
+        <h1>${escapeHtml(ETABLISSEMENT.nom)}</h1>
+        <p>${escapeHtml(ETABLISSEMENT.adresse)}</p>
+        ${ETABLISSEMENT.telephone ? `<p>Tél : ${escapeHtml(ETABLISSEMENT.telephone)}</p>` : ""}
+      </div>
+      <div class="titre-recu">
+        <h2>REÇU DE PAIEMENT</h2>
+        <p>N° ${numeroRecu}</p>
+        <p>Émis le ${dateEmission}</p>
+      </div>
+    </div>
+
+    <div class="infos">
+      <div>
+        <div class="label">Élève</div>
+        <div>${escapeHtml(nomEleve)}</div>
+      </div>
+      <div>
+        <div class="label">Classe</div>
+        <div>${escapeHtml(classeLabel)}</div>
+      </div>
+      <div>
+        <div class="label">Date du paiement</div>
+        <div>${formatDate(paiement.date_paiement)}</div>
+      </div>
+      <div>
+        <div class="label">Mode de paiement</div>
+        <div>${escapeHtml(paiement.mode_paiement || "Non précisé")}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Tranche réglée</th><th style="text-align:right;">Montant affecté</th></tr></thead>
+      <tbody>${lignesHtml}${nonAffecteHtml}</tbody>
+      <tfoot><tr><td>Total versé</td><td style="text-align:right;">${formatMontant(paiement.montant_verse)}</td></tr></tfoot>
+    </table>
+
+    <div class="montant-lettres">Arrêté le présent reçu à la somme de : ${montantEnLettres(paiement.montant_verse)}.</div>
+
+    <div class="signatures">
+      <div><div class="ligne">Signature du parent / tuteur</div></div>
+      <div><div class="ligne">Signature et cachet</div></div>
+    </div>
+
+    <p class="pied">Reçu généré automatiquement — Paiement #${paiement.id}</p>
+
+    <div class="no-print">
+      <button onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimer / Enregistrer en PDF</button>
+    </div>
+  </div>
+</body>
+</html>`;
+      }
+
+      function imprimerRecuPaiement(id) {
+        const paiement = state.paiements.find(p => p.id == id);
+        if (!paiement) {
+          showToast("Paiement introuvable.", "error");
+          return;
+        }
+        const fenetre = window.open("", "_blank", "width=720,height=900");
+        if (!fenetre) {
+          showToast("Veuillez autoriser les fenêtres popup pour générer le reçu.", "error");
+          return;
+        }
+        fenetre.document.open();
+        fenetre.document.write(genererRecuHtml(paiement));
+        fenetre.document.close();
+      }
 
       /* ─────────── Répartition automatique d'un paiement sur les tranches impayées ─────────── */
 
