@@ -562,3 +562,134 @@ class PaiementService:
             'total_verse': float(total_verse),
             'solde_global': float(total_attendu - total_verse)
         }
+
+    # ==================== SOLVABILITÉ ====================
+
+    @staticmethod
+    def get_statut_solvabilite(inscription_id, annee_scolaire_id, classe_id, aujourd_hui=None):
+        """Détermine si un élève (inscription) est solvable ou insolvable pour
+        une année scolaire et une classe données.
+
+        Règles retenues :
+        - Insolvable : l'élève a au moins une tranche exigible (date_limite
+          dépassée) qui n'est pas intégralement soldée (statut 'Impayé' OU
+          'Partiel'). Un paiement partiel sur une tranche en retard ne suffit
+          donc pas : la tranche doit être totalement payée pour ne pas
+          compter comme un défaut.
+        - Solvable : sinon, c'est-à-dire soit la pension est payée en
+          totalité, soit toutes les tranches déjà exigibles sont soldées
+          (les tranches futures pouvant être payées en totalité, en partie,
+          ou pas encore payées sans que cela ne remette en cause la
+          solvabilité).
+
+        Args:
+            inscription_id: ID de l'inscription de l'élève
+            annee_scolaire_id: ID de l'année scolaire
+            classe_id: ID de la classe
+            aujourd_hui: date de référence pour déterminer les tranches
+                échues (par défaut date.today()), utile pour les tests.
+
+        Returns:
+            dict: {
+                'inscription_id', 'annee_scolaire_id', 'classe_id',
+                'solvable': bool,
+                'total_attendu', 'total_verse', 'solde_global',
+                'tranches_en_defaut': [ {tranche_id, libelle, date_limite,
+                                          montant_attendu, montant_verse,
+                                          solde, statut}, ... ],
+                'situation': <résultat complet de get_situation_financiere>
+            }
+        """
+        aujourd_hui = aujourd_hui or date.today()
+
+        situation = PaiementService.get_situation_financiere(
+            inscription_id, annee_scolaire_id, classe_id
+        )
+
+        tranches_en_defaut = []
+        for t in situation['tranches']:
+            if not t['date_limite']:
+                continue  # pas de date limite définie -> jamais "exigible"
+            date_limite = _parse_date(t['date_limite'])
+            est_exigible = date_limite is not None and date_limite < aujourd_hui
+            est_soldee = t['statut'] == 'Soldé'
+            if est_exigible and not est_soldee:
+                tranches_en_defaut.append(t)
+
+        solvable = len(tranches_en_defaut) == 0
+
+        return {
+            'inscription_id': inscription_id,
+            'annee_scolaire_id': annee_scolaire_id,
+            'classe_id': classe_id,
+            'solvable': solvable,
+            'total_attendu': situation['total_attendu'],
+            'total_verse': situation['total_verse'],
+            'solde_global': situation['solde_global'],
+            'tranches_en_defaut': tranches_en_defaut,
+            'situation': situation,
+        }
+
+    @staticmethod
+    def get_listes_solvabilite(annee_scolaire_id, classe_id=None, aujourd_hui=None):
+        """Génère la liste des élèves solvables et insolvables pour une année
+        scolaire donnée (et éventuellement une classe précise).
+
+        Parcourt toutes les inscriptions de l'année scolaire (filtrées par
+        classe si `classe_id` est fourni) et applique
+        `get_statut_solvabilite` à chacune.
+
+        Returns:
+            dict: {
+                'annee_scolaire_id', 'classe_id',
+                'solvables': [ {inscription_id, eleve, classe, total_attendu,
+                                 total_verse, solde_global}, ... ],
+                'insolvables': [ {..., 'tranches_en_defaut': [...]}, ... ],
+                'total_eleves', 'total_solvables', 'total_insolvables'
+            }
+        """
+        from models.inscription import Inscription
+
+        aujourd_hui = aujourd_hui or date.today()
+
+        query = Inscription.query.filter_by(annee_scolaire_id=annee_scolaire_id)
+        if classe_id is not None:
+            query = query.filter_by(classe_id=classe_id)
+        inscriptions = query.all()
+
+        solvables = []
+        insolvables = []
+
+        for inscription in inscriptions:
+            statut = PaiementService.get_statut_solvabilite(
+                inscription.id,
+                annee_scolaire_id,
+                inscription.classe_id,
+                aujourd_hui=aujourd_hui
+            )
+
+            ligne = {
+                'inscription_id': inscription.id,
+                'eleve': inscription.eleve.to_dict(with_parent=False) if inscription.eleve else None,
+                'classe_id': inscription.classe_id,
+                'classe': inscription.classe.to_dict() if inscription.classe else None,
+                'total_attendu': statut['total_attendu'],
+                'total_verse': statut['total_verse'],
+                'solde_global': statut['solde_global'],
+            }
+
+            if statut['solvable']:
+                solvables.append(ligne)
+            else:
+                ligne['tranches_en_defaut'] = statut['tranches_en_defaut']
+                insolvables.append(ligne)
+
+        return {
+            'annee_scolaire_id': annee_scolaire_id,
+            'classe_id': classe_id,
+            'solvables': solvables,
+            'insolvables': insolvables,
+            'total_eleves': len(inscriptions),
+            'total_solvables': len(solvables),
+            'total_insolvables': len(insolvables),
+        }

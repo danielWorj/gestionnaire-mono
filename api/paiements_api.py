@@ -201,6 +201,42 @@ def get_situation_financiere(inscription_id, annee_scolaire_id, classe_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@paiements_bp.route(
+    '/inscriptions/<int:inscription_id>/solvabilite/<int:annee_scolaire_id>/<int:classe_id>',
+    methods=['GET']
+)
+def get_solvabilite_eleve(inscription_id, annee_scolaire_id, classe_id):
+    """Récupérer le statut de solvabilité d'un élève pour une année scolaire
+    et une classe données.
+
+    Un élève est déclaré insolvable si au moins une de ses tranches est
+    exigible (date_limite dépassée) sans être intégralement soldée. Sinon il
+    est déclaré solvable.
+    """
+    try:
+        statut = PaiementService.get_statut_solvabilite(inscription_id, annee_scolaire_id, classe_id)
+        return jsonify({'success': True, 'data': statut}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@paiements_bp.route('/solvabilite/<int:annee_scolaire_id>', methods=['GET'])
+def get_listes_solvabilite(annee_scolaire_id):
+    """Récupérer les listes des élèves solvables et insolvables pour une
+    année scolaire donnée.
+
+    Filtre optionnel via le paramètre de requête `classe_id` pour ne
+    considérer qu'une classe précise :
+        GET /api/paiements/solvabilite/<annee_scolaire_id>?classe_id=3
+    """
+    try:
+        classe_id = request.args.get('classe_id', type=int)
+        listes = PaiementService.get_listes_solvabilite(annee_scolaire_id, classe_id=classe_id)
+        return jsonify({'success': True, 'data': listes}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @paiements_bp.route('', methods=['POST'])
 def create_paiement():
     """Enregistrer un nouveau paiement.

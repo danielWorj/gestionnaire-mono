@@ -221,6 +221,12 @@
               <i class="fa-solid fa-user-clock me-1"></i>Situation d'un élève
             </button>
           </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-solvabilite" data-bs-toggle="tab"
+                    data-bs-target="#pane-solvabilite" type="button" role="tab">
+              <i class="fa-solid fa-scale-balanced me-1"></i>Solvabilité
+            </button>
+          </li>
         </ul>
 
         <div class="tab-content" id="paiementsTabsContent">
@@ -358,6 +364,91 @@
                   <div class="card-footer d-flex justify-content-between">
                     <small class="text-muted">Totaux généraux de l'élève sur l'année</small>
                     <small><strong id="situationTotaux">—</strong></small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 4 : SOLVABILITÉ ─────────── -->
+          <div class="tab-pane fade" id="pane-solvabilite" role="tabpanel">
+            <div class="card mb-3">
+              <div class="card-body py-3">
+                <div class="filter-bar">
+                  <div class="filter-group" style="min-width:220px;">
+                    <label for="solvabiliteClasse">Classe</label>
+                    <select class="form-select form-select-sm" id="solvabiliteClasse">
+                      <option value="">Toutes les classes</option>
+                    </select>
+                  </div>
+                  <div class="filter-group">
+                    <button class="btn btn-primary btn-sm" id="btnChargerSolvabilite">
+                      <i class="fa-solid fa-magnifying-glass"></i> Actualiser
+                    </button>
+                  </div>
+                  <div class="filter-group ms-auto" style="text-align:right;">
+                    <small class="text-muted">
+                      <i class="fa-solid fa-circle-info me-1"></i>Un élève est insolvable dès qu'une de ses tranches
+                      dont la date limite est dépassée n'est pas intégralement soldée.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-circle-check me-2" style="color: var(--ta-success);"></i>Élèves solvables
+                      <span class="badge badge-statut-solde ms-2" id="solvablesCount">0</span>
+                    </h2>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0" id="tableSolvables">
+                        <thead>
+                          <tr>
+                            <th>Élève</th>
+                            <th>Classe</th>
+                            <th>Attendu</th>
+                            <th>Versé</th>
+                            <th>Solde</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr><td colspan="5" class="grid-empty">Aucune donnée chargée</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-circle-exclamation me-2" style="color: var(--ta-danger);"></i>Élèves insolvables
+                      <span class="badge badge-statut-impaye ms-2" id="insolvablesCount">0</span>
+                    </h2>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0" id="tableInsolvables">
+                        <thead>
+                          <tr>
+                            <th>Élève</th>
+                            <th>Classe</th>
+                            <th>Tranche(s) en défaut</th>
+                            <th>Solde</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr><td colspan="4" class="grid-empty">Aucune donnée chargée</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -552,6 +643,7 @@
         paiementById: (id) => `${API_BASE}/${id}`,
         paiementsByTranche: (trancheId) => `${API_BASE}/tranches/${trancheId}/paiements`,
         situation: (inscriptionId, anneeId, classeId) => `${API_BASE}/inscriptions/${inscriptionId}/situation/${anneeId}/${classeId}`,
+        solvabilite: (anneeId, classeId) => `${API_BASE}/solvabilite/${anneeId}${classeId ? `?classe_id=${classeId}` : ""}`,
 
         // Routes réelles ou à adapter selon vos blueprints existants :
         anneesScolaires: "/api/structure/annees-scolaires",
@@ -683,6 +775,7 @@
         const filterClasse = document.getElementById("filterClasse");
         const trancheClasse = document.getElementById("trancheClasse");
         const filterClassePaiements = document.getElementById("filterClassePaiements");
+        const solvabiliteClasse = document.getElementById("solvabiliteClasse");
         try {
           const payload = await apiFetch(ENDPOINTS.classes);
           state.classes = payload.data || [];
@@ -690,9 +783,11 @@
           filterClasse.innerHTML = `<option value="">Toutes les classes</option>` + options;
           trancheClasse.innerHTML = `<option value="">-- Choisir une classe --</option>` + options;
           filterClassePaiements.innerHTML = `<option value="">Toutes les classes</option>` + options;
+          if (solvabiliteClasse) solvabiliteClasse.innerHTML = `<option value="">Toutes les classes</option>` + options;
         } catch (e) {
           filterClasse.innerHTML = `<option value="">Indisponible</option>`;
           filterClassePaiements.innerHTML = `<option value="">Indisponible</option>`;
+          if (solvabiliteClasse) solvabiliteClasse.innerHTML = `<option value="">Indisponible</option>`;
           showToast(`Classes : ${e.message}`, "error");
         }
       }
@@ -1365,6 +1460,75 @@
       document.getElementById("btnChargerSituation").addEventListener("click", loadSituation);
 
       /* ═══════════════════════════════════════
+         SOLVABILITÉ DES ÉLÈVES
+         Insolvable = au moins une tranche dont la date limite est dépassée
+         et qui n'est pas intégralement soldée (Impayé ou Partiel).
+      ═══════════════════════════════════════ */
+      async function loadSolvabilite() {
+        if (!state.anneeActiveId) return;
+        const classeId = document.getElementById("solvabiliteClasse").value || null;
+        const tbodySolv = document.querySelector("#tableSolvables tbody");
+        const tbodyInsolv = document.querySelector("#tableInsolvables tbody");
+
+        tbodySolv.innerHTML = `<tr><td colspan="5" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+        tbodyInsolv.innerHTML = `<tr><td colspan="4" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+
+        try {
+          const payload = await apiFetch(ENDPOINTS.solvabilite(state.anneeActiveId, classeId));
+          renderSolvabilite(payload.data);
+        } catch (e) {
+          const msg = `<tr><td colspan="5" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
+          tbodySolv.innerHTML = msg;
+          tbodyInsolv.innerHTML = msg.replace('colspan="5"', 'colspan="4"');
+        }
+      }
+
+      function renderSolvabilite(data) {
+        const tbodySolv = document.querySelector("#tableSolvables tbody");
+        const tbodyInsolv = document.querySelector("#tableInsolvables tbody");
+
+        document.getElementById("solvablesCount").textContent = data.total_solvables;
+        document.getElementById("insolvablesCount").textContent = data.total_insolvables;
+
+        if (!data.solvables.length) {
+          tbodySolv.innerHTML = `<tr><td colspan="5" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucun élève solvable pour ces critères.</td></tr>`;
+        } else {
+          tbodySolv.innerHTML = data.solvables.map((s) => {
+            const nom = s.eleve ? `${s.eleve.nom || ""} ${s.eleve.prenom || ""}`.trim() : `Inscription #${s.inscription_id}`;
+            return `
+            <tr>
+              <td>${escapeHtml(nom)}</td>
+              <td>${s.classe ? escapeHtml(s.classe.libelle) : "—"}</td>
+              <td>${formatMontant(s.total_attendu)}</td>
+              <td>${formatMontant(s.total_verse)}</td>
+              <td class="${s.solde_global > 0 ? 'solde-negatif' : 'solde-positif'}">${formatMontant(s.solde_global)}</td>
+            </tr>`;
+          }).join("");
+        }
+
+        if (!data.insolvables.length) {
+          tbodyInsolv.innerHTML = `<tr><td colspan="4" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucun élève insolvable pour ces critères.</td></tr>`;
+        } else {
+          tbodyInsolv.innerHTML = data.insolvables.map((s) => {
+            const nom = s.eleve ? `${s.eleve.nom || ""} ${s.eleve.prenom || ""}`.trim() : `Inscription #${s.inscription_id}`;
+            const tranchesLabel = (s.tranches_en_defaut || [])
+              .map(t => `${t.libelle} (échue le ${formatDate(t.date_limite)}, ${statutBadge(t.statut)})`)
+              .join("<br>");
+            return `
+            <tr>
+              <td>${escapeHtml(nom)}</td>
+              <td>${s.classe ? escapeHtml(s.classe.libelle) : "—"}</td>
+              <td>${tranchesLabel}</td>
+              <td class="solde-negatif">${formatMontant(s.solde_global)}</td>
+            </tr>`;
+          }).join("");
+        }
+      }
+
+      document.getElementById("btnChargerSolvabilite").addEventListener("click", loadSolvabilite);
+      document.getElementById("solvabiliteClasse").addEventListener("change", loadSolvabilite);
+
+      /* ═══════════════════════════════════════
          STATISTIQUES GLOBALES
       ═══════════════════════════════════════ */
       function updateStats() {
@@ -1529,6 +1693,7 @@
       document.querySelectorAll("#paiementsTabs button[data-bs-toggle='tab']").forEach((btn) => {
         btn.addEventListener("shown.bs.tab", (e) => {
           if (e.target.id === "tab-paiements") loadPaiements();
+          if (e.target.id === "tab-solvabilite") loadSolvabilite();
         });
       });
 
