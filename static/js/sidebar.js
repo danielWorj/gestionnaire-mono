@@ -79,6 +79,12 @@
           icon: "fa-money-bill-wave",
           href: "/paiements",
         },
+        {
+          key: "finances",
+          label: "Finances",
+          icon: "fa-money-bill-wave",
+          href: "/finances",
+        }
       ],
     },
   ];

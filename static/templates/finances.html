@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finances — Gestionnaire</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- Style projet -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+  <!-- ═══════════════════════════════════════════════
+       Styles spécifiques à la page Finances
+       Repose entièrement sur les variables --ta-* de style.css
+  ═══════════════════════════════════════════════ -->
+  <style>
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11px; font-weight: 600; color: var(--ta-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+    .grid-loading, .grid-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 40px; color: var(--ta-text-light); font-size: 13px; }
+
+    .montant-entree { color: var(--ta-success); font-weight: 700; }
+    .montant-sortie { color: var(--ta-danger); font-weight: 700; }
+    .montant-solde-pos { color: var(--ta-success); font-weight: 700; }
+    .montant-solde-neg { color: var(--ta-danger); font-weight: 700; }
+
+    /* ── Journal financier (écran) ── */
+    .journal-categorie { border: 1px solid var(--ta-border); border-radius: var(--ta-radius); margin-bottom: 16px; overflow: hidden; }
+    .journal-categorie-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 16px; background: var(--ta-bg); border-bottom: 1px solid var(--ta-border);
+    }
+    .journal-categorie-header .cat-nom { font-weight: 700; font-size: 13.5px; color: var(--ta-text); }
+    .journal-categorie-header .cat-totaux { font-size: 11.5px; color: var(--ta-text-muted); display: flex; gap: 14px; }
+    .journal-entree-bloc { border-bottom: 1px solid var(--ta-border-light); }
+    .journal-entree-bloc:last-child { border-bottom: none; }
+    .journal-entree-ligne {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 16px; font-size: 12.5px;
+    }
+    .journal-entree-ligne .lib { font-weight: 600; color: var(--ta-text); }
+    .journal-entree-ligne .meta { color: var(--ta-text-light); font-size: 11px; }
+    .journal-sorties-liste { padding: 0 16px 10px 34px; }
+    .journal-sortie-ligne {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 5px 0; font-size: 12px; color: var(--ta-text-muted); border-top: 1px dashed var(--ta-border-light);
+    }
+    .journal-sortie-ligne:first-child { border-top: none; }
+    .journal-cat-empty { padding: 14px 16px; font-size: 12px; color: var(--ta-text-light); font-style: italic; }
+
+    .journal-footer-global {
+      display: flex; flex-wrap: wrap; gap: 24px; justify-content: flex-end;
+      padding: 14px 16px; border: 1px solid var(--ta-border); border-radius: var(--ta-radius);
+      background: var(--ta-bg); font-size: 13px;
+    }
+    .journal-footer-global .item { display: flex; flex-direction: column; align-items: flex-end; }
+    .journal-footer-global .item .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ta-text-muted); }
+    .journal-footer-global .item .val { font-weight: 700; font-size: 15px; }
+
+    .badge-libre { background: var(--ta-warning-light); color: var(--ta-warning); }
+    .badge-financee { background: var(--ta-info-light); color: var(--ta-info); }
+
+    @media (max-width: 575.98px) {
+      .filter-bar { gap: 10px; }
+      .journal-entree-ligne, .journal-sortie-ligne { flex-direction: column; align-items: flex-start; gap: 2px; }
+    }
+
+    /* ═══════════════════════════════════════════════
+         IMPRESSION DU JOURNAL FINANCIER
+         Seul #journalPrintable est visible à l'impression.
+    ═══════════════════════════════════════════════ */
+    #journalPrintable { display: none; }
+
+    @media print {
+      @page { margin: 14mm 12mm; }
+      body * { visibility: hidden !important; }
+      #journalPrintable, #journalPrintable * { visibility: visible !important; }
+      #journalPrintable {
+        display: block !important;
+        position: absolute; top: 0; left: 0; width: 100%;
+        font-size: 11.5px; color: #111;
+      }
+      .print-header { text-align: center; margin-bottom: 6px; }
+      .print-header h1 { font-size: 17px; margin: 0 0 2px; }
+      .print-header .etab { font-size: 11px; color: #444; }
+      .print-header .periode { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
+      .print-meta { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin: 8px 0 14px; border-bottom: 1px solid #999; padding-bottom: 6px; }
+      .print-cat { margin-bottom: 12px; page-break-inside: avoid; }
+      .print-cat-title { font-weight: 700; font-size: 12.5px; background: #eee; padding: 4px 8px; border: 1px solid #999; }
+      table.print-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+      table.print-table th, table.print-table td { border: 1px solid #bbb; padding: 3px 6px; font-size: 10.5px; text-align: left; }
+      table.print-table th { background: #f2f2f2; }
+      table.print-table td.num, table.print-table th.num { text-align: right; white-space: nowrap; }
+      .print-sortie-row td:first-child { padding-left: 18px; color: #333; }
+      .print-cat-total td { font-weight: 700; background: #f7f7f7; }
+      .print-global-totals { margin-top: 16px; border-top: 2px solid #333; padding-top: 8px; }
+      .print-global-totals table { width: 60%; margin-left: auto; border-collapse: collapse; }
+      .print-global-totals td { padding: 3px 8px; font-size: 11.5px; }
+      .print-global-totals td.num { text-align: right; font-weight: 700; }
+      .print-signatures { display: flex; justify-content: space-between; margin-top: 46px; font-size: 11px; }
+      .print-signatures div { width: 40%; text-align: center; border-top: 1px solid #333; padding-top: 4px; }
+    }
+  </style>
+</head>
+<body data-page="finances">
+
+  <div class="app-wrapper">
+    <div class="main-content" id="mainContent">
+
+      <!-- Contenu de la page -->
+      <main class="page-content">
+
+        <!-- Fil d'ariane -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard"><i class="fa-solid fa-house me-1"></i>Tableau de bord</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Finances</li>
+          </ol>
+        </nav>
+
+        <!-- Titre + actions -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <div>
+            <h1 class="page-title mb-1">Finances</h1>
+            <p class="mb-0 text-muted" style="font-size:12px;">
+              Gérez les entrées, les sorties et consultez le journal financier par catégorie d'entrée.
+            </p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-light btn-sm" type="button" id="btnRefresh">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+            <button class="btn btn-light btn-sm" type="button" id="btnImprimerJournal">
+              <i class="fa-solid fa-print"></i> Imprimer le journal
+            </button>
+            <div class="btn-group">
+              <button class="btn btn-success btn-sm" type="button" id="btnNouvelleEntree">
+                <i class="fa-solid fa-arrow-down"></i> Nouvelle entrée
+              </button>
+              <button class="btn btn-danger btn-sm" type="button" id="btnNouvelleSortie">
+                <i class="fa-solid fa-arrow-up"></i> Nouvelle sortie
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             FILTRE PÉRIODE
+        ═══════════════════════════════════════════════ -->
+        <div class="card mb-3">
+          <div class="card-body py-3">
+            <div class="filter-bar">
+              <div class="filter-group">
+                <label for="filterDateDebut">Du</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateDebut" style="min-width:160px;">
+              </div>
+              <div class="filter-group">
+                <label for="filterDateFin">Au</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateFin" style="min-width:160px;">
+              </div>
+              <div class="filter-group">
+                <button class="btn btn-primary btn-sm" type="button" id="btnAppliquerPeriode">
+                  <i class="fa-solid fa-filter"></i> Appliquer
+                </button>
+              </div>
+              <div class="filter-group">
+                <button class="btn btn-light btn-sm" type="button" id="btnReinitialiserPeriode">
+                  <i class="fa-solid fa-xmark"></i> Réinitialiser
+                </button>
+              </div>
+              <div class="filter-group flex-grow-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             STATS GLOBALES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon success"><i class="fa-solid fa-arrow-down"></i></div>
+              <div class="stat-label">Total des entrées</div>
+              <div class="stat-value" id="statTotalEntrees">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-sack-dollar"></i> <span id="statNbEntrees">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon danger"><i class="fa-solid fa-arrow-up"></i></div>
+              <div class="stat-label">Total des sorties</div>
+              <div class="stat-value" id="statTotalSorties">—</div>
+              <div class="stat-change down"><i class="fa-solid fa-receipt"></i> <span id="statNbSorties">—</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon primary"><i class="fa-solid fa-scale-balanced"></i></div>
+              <div class="stat-label">Solde</div>
+              <div class="stat-value" id="statSolde">—</div>
+              <div class="stat-change up"><i class="fa-solid fa-circle-info"></i> <span id="statSoldeLabel">Entrées − Sorties</span></div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon warning"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+              <div class="stat-label">Disponible non affecté</div>
+              <div class="stat-value" id="statDisponible">—</div>
+              <div class="stat-change down"><i class="fa-solid fa-layer-group"></i> <span id="statDisponibleLabel">Sur les entrées</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             GRAPHIQUES
+        ═══════════════════════════════════════════════ -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Entrées par catégorie</h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartEntrees" height="220"></canvas>
+                <div id="chartEntreesEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune entrée enregistrée</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Sorties par catégorie</h2>
+              </div>
+              <div class="card-body">
+                <canvas id="chartSorties" height="220"></canvas>
+                <div id="chartSortiesEmpty" class="text-center text-muted py-5" style="display:none;">
+                  <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                  <p class="mb-0" style="font-size:12px;">Aucune sortie enregistrée</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════
+             ONGLETS PRINCIPAUX
+        ═══════════════════════════════════════════════ -->
+        <ul class="nav nav-tabs mb-3" id="financesTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-journal" data-bs-toggle="tab"
+                    data-bs-target="#pane-journal" type="button" role="tab">
+              <i class="fa-solid fa-book me-1"></i>Journal financier
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-entrees" data-bs-toggle="tab"
+                    data-bs-target="#pane-entrees" type="button" role="tab">
+              <i class="fa-solid fa-arrow-down me-1"></i>Entrées
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-sorties" data-bs-toggle="tab"
+                    data-bs-target="#pane-sorties" type="button" role="tab">
+              <i class="fa-solid fa-arrow-up me-1"></i>Sorties
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-categories" data-bs-toggle="tab"
+                    data-bs-target="#pane-categories" type="button" role="tab">
+              <i class="fa-solid fa-tags me-1"></i>Catégories
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="financesTabsContent">
+
+          <!-- ─────────── ONGLET 1 : JOURNAL FINANCIER (par catégorie d'entrée) ─────────── -->
+          <div class="tab-pane fade show active" id="pane-journal" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-book me-2 text-primary"></i>Journal financier par catégorie d'entrée
+                </h2>
+                <button class="btn btn-light btn-sm" id="btnImprimerJournal2">
+                  <i class="fa-solid fa-print"></i> Imprimer
+                </button>
+              </div>
+              <div class="card-body" id="journalScreen">
+                <div class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement du journal…</div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Chaque entrée liste les sorties qu'elle finance directement. Les sorties sans entrée associée figurent en bas, groupées par catégorie de sortie.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 2 : ENTRÉES ─────────── -->
+          <div class="tab-pane fade" id="pane-entrees" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-arrow-down me-2 text-success"></i>Entrées (recettes)
+                  <span class="badge badge-primary ms-2" id="entreesCount">0</span>
+                </h2>
+                <div class="d-flex flex-wrap gap-2">
+                  <select class="form-select form-select-sm" id="filterCategorieEntree" style="min-width:190px;">
+                    <option value="">Toutes les catégories</option>
+                  </select>
+                  <button class="btn btn-success btn-sm" id="btnNouvelleEntree2">
+                    <i class="fa-solid fa-plus"></i> Nouvelle entrée
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" id="tableEntrees">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Libellé</th>
+                        <th>Catégorie</th>
+                        <th class="text-end">Montant</th>
+                        <th class="text-end">Sorti</th>
+                        <th class="text-end">Disponible</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="7" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer d-flex justify-content-between">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Le montant disponible correspond au montant restant après déduction des sorties rattachées.</small>
+                <small><strong id="entreesTotaux">—</strong></small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 3 : SORTIES ─────────── -->
+          <div class="tab-pane fade" id="pane-sorties" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-arrow-up me-2 text-danger"></i>Sorties (dépenses)
+                  <span class="badge badge-primary ms-2" id="sortiesCount">0</span>
+                </h2>
+                <div class="d-flex flex-wrap gap-2">
+                  <select class="form-select form-select-sm" id="filterCategorieSortie" style="min-width:190px;">
+                    <option value="">Toutes les catégories</option>
+                  </select>
+                  <select class="form-select form-select-sm" id="filterFinancement" style="min-width:170px;">
+                    <option value="">Toutes les sorties</option>
+                    <option value="financee">Financées par une entrée</option>
+                    <option value="libre">Non rattachées</option>
+                  </select>
+                  <button class="btn btn-danger btn-sm" id="btnNouvelleSortie2">
+                    <i class="fa-solid fa-plus"></i> Nouvelle sortie
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" id="tableSorties">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Libellé</th>
+                        <th>Catégorie</th>
+                        <th>Entrée liée</th>
+                        <th class="text-end">Montant</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer d-flex justify-content-between">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Une sortie peut être rattachée à une entrée précise pour en assurer le financement.</small>
+                <small><strong id="sortiesTotaux">—</strong></small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 4 : CATÉGORIES ─────────── -->
+          <div class="tab-pane fade" id="pane-categories" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title"><i class="fa-solid fa-tag me-2 text-success"></i>Catégories d'entrées</h2>
+                    <button class="btn btn-success btn-sm" id="btnNouvelleCategorieEntree">
+                      <i class="fa-solid fa-plus"></i> Ajouter
+                    </button>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0" id="tableCategoriesEntree">
+                        <thead>
+                          <tr>
+                            <th>Libellé</th>
+                            <th>Description</th>
+                            <th class="text-end">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr><td colspan="3" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title"><i class="fa-solid fa-tag me-2 text-danger"></i>Catégories de sorties</h2>
+                    <button class="btn btn-danger btn-sm" id="btnNouvelleCategorieSortie">
+                      <i class="fa-solid fa-plus"></i> Ajouter
+                    </button>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0" id="tableCategoriesSortie">
+                        <thead>
+                          <tr>
+                            <th>Libellé</th>
+                            <th>Description</th>
+                            <th class="text-end">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr><td colspan="3" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       ZONE IMPRIMABLE : Journal financier
+       Générée dynamiquement en JS avant window.print()
+  ═══════════════════════════════════════════════ -->
+  <div id="journalPrintable"></div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvelle / Modifier catégorie
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalCategorie" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalCategorieTitle"><i class="fa-solid fa-tag me-2 text-primary"></i>Nouvelle catégorie</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" id="categorieFormError"></div>
+          <form id="formCategorie">
+            <input type="hidden" id="categorieId">
+            <input type="hidden" id="categorieType">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé *</label>
+                <input type="text" class="form-control" id="categorieLibelle" maxlength="100" placeholder="Ex : Frais de scolarité" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="categorieDescription" rows="3" placeholder="Description optionnelle"></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="btnEnregistrerCategorie"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvelle / Modifier entrée
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalEntree" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEntreeTitle"><i class="fa-solid fa-arrow-down me-2 text-success"></i>Nouvelle entrée</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" id="entreeFormError"></div>
+          <form id="formEntree">
+            <input type="hidden" id="entreeId">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé *</label>
+                <input type="text" class="form-control" id="entreeLibelle" maxlength="150" placeholder="Ex : Frais 1ère tranche - classe de 6e" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Catégorie d'entrée *</label>
+                <select class="form-select" id="entreeCategorie" required>
+                  <option value="">-- Choisir --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Montant (FCFA) *</label>
+                <input type="number" class="form-control" id="entreeMontant" min="1" step="1" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-control" id="entreeDate" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="entreeDescription" rows="2" placeholder="Description optionnelle"></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-success" id="btnEnregistrerEntree"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Nouvelle / Modifier sortie
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalSortie" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalSortieTitle"><i class="fa-solid fa-arrow-up me-2 text-danger"></i>Nouvelle sortie</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" id="sortieFormError"></div>
+          <form id="formSortie">
+            <input type="hidden" id="sortieId">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé *</label>
+                <input type="text" class="form-control" id="sortieLibelle" maxlength="150" placeholder="Ex : Achat de fournitures de bureau" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Catégorie de sortie *</label>
+                <select class="form-select" id="sortieCategorie" required>
+                  <option value="">-- Choisir --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Montant (FCFA) *</label>
+                <input type="number" class="form-control" id="sortieMontant" min="1" step="1" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-control" id="sortieDate" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Financée par une entrée</label>
+                <select class="form-select" id="sortieEntree">
+                  <option value="">-- Non rattachée --</option>
+                </select>
+                <small class="text-muted" id="sortieEntreeDisponible"></small>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="sortieDescription" rows="2" placeholder="Description optionnelle"></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger" id="btnEnregistrerSortie"><i class="fa-solid fa-check"></i> Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MODAL : Confirmation suppression
+  ═══════════════════════════════════════════════ -->
+  <div class="modal fade" id="modalConfirmSuppression" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirmer la suppression</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0" id="confirmSuppressionMessage">Confirmer la suppression ? Cette action est irréversible.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger btn-sm" id="btnConfirmerSuppression"><i class="fa-solid fa-trash"></i> Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="fa-solid fa-circle-check text-success me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js -->
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+  <!-- Sidebar du projet -->
+  <script>
+    window.GESTIONNAIRE_USER = {
+      nom: "Marie Fouda",
+      role: "Admin École",
+      avatar: null
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}" defer></script>
+
+  <!-- Script spécifique à la page Finances -->
+  <script>
+    (function () {
+      "use strict";
+
+      /* ═══════════════════════════════════════
+         CONFIGURATION DES ENDPOINTS
+         Correspond aux routes de finances_api.py
+      ═══════════════════════════════════════ */
+      const API_BASE = "/api/finances";
+      const ENDPOINTS = {
+        categoriesEntree: `${API_BASE}/categories-entrees`,
+        categorieEntreeById: (id) => `${API_BASE}/categories-entrees/${id}`,
+        categoriesSortie: `${API_BASE}/categories-sorties`,
+        categorieSortieById: (id) => `${API_BASE}/categories-sorties/${id}`,
+        entrees: `${API_BASE}/entrees`,
+        entreeById: (id) => `${API_BASE}/entrees/${id}`,
+        entreesPlageDates: (d1, d2) => `${API_BASE}/entrees/plage-dates?date_debut=${d1}&date_fin=${d2}`,
+        sorties: `${API_BASE}/sorties`,
+        sortieById: (id) => `${API_BASE}/sorties/${id}`,
+        sortiesPlageDates: (d1, d2) => `${API_BASE}/sorties/plage-dates?date_debut=${d1}&date_fin=${d2}`,
+        attacherEntree: (id) => `${API_BASE}/sorties/${id}/attacher-entree`,
+        detacherEntree: (id) => `${API_BASE}/sorties/${id}/detacher-entree`,
+        totaux: (d1, d2) => {
+          const params = [];
+          if (d1) params.push(`date_debut=${d1}`);
+          if (d2) params.push(`date_fin=${d2}`);
+          return `${API_BASE}/totaux${params.length ? "?" + params.join("&") : ""}`;
+        }
+      };
+
+      // Coordonnées affichées en en-tête du journal imprimé — à adapter à votre établissement.
+      const ETABLISSEMENT = {
+        nom: "Établissement scolaire",
+        adresse: "Douala, Cameroun"
+      };
+
+      const state = {
+        categoriesEntree: [],
+        categoriesSortie: [],
+        entrees: [],
+        sorties: [],
+        dateDebut: null,
+        dateFin: null,
+        confirmCallback: null
+      };
+
+      let chartEntrees = null;
+      let chartSorties = null;
+      const modalConfirm = () => new bootstrap.Modal(document.getElementById("modalConfirmSuppression"));
+
+      /* ═══════════════════════════════════════
+         HELPERS
+      ═══════════════════════════════════════ */
+      async function apiFetch(url, options = {}) {
+        const res = await fetch(url, {
+          headers: { "Content-Type": "application/json" },
+          ...options
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch (e) { /* réponse vide */ }
+        if (!res.ok || (payload && payload.success === false)) {
+          const message = (payload && payload.error) || `Erreur ${res.status}`;
+          throw new Error(message);
+        }
+        return payload;
+      }
+
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#94A3B8";
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+      }
+
+      function formatMontant(v) {
+        const n = Number(v || 0);
+        return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " FCFA";
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+      }
+
+      function todayIso() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function showToast(message, type) {
+        const body = document.getElementById("toastBody");
+        const title = document.getElementById("toastTitle");
+        const icon = document.getElementById("toastIcon");
+        body.textContent = message;
+        title.textContent = type === "error" ? "Erreur" : "Notification";
+        icon.className = type === "error"
+          ? "fa-solid fa-circle-exclamation text-danger me-2"
+          : "fa-solid fa-circle-check text-success me-2";
+        new bootstrap.Toast(document.getElementById("appToast"), { delay: 4000 }).show();
+      }
+
+      function askConfirmation(message, callback) {
+        document.getElementById("confirmSuppressionMessage").textContent = message;
+        state.confirmCallback = callback;
+        modalConfirm().show();
+      }
+
+      document.getElementById("btnConfirmerSuppression").addEventListener("click", async () => {
+        if (typeof state.confirmCallback === "function") {
+          await state.confirmCallback();
+        }
+        bootstrap.Modal.getInstance(document.getElementById("modalConfirmSuppression"))?.hide();
+      });
+
+      const PALETTE = ["#3C50E0", "#219653", "#F59E0B", "#D34053", "#0EA5E9", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#64748B"];
+
+      /* ═══════════════════════════════════════
+         CHARGEMENT DES RÉFÉRENTIELS (catégories)
+      ═══════════════════════════════════════ */
+      async function loadCategoriesEntree() {
+        const payload = await apiFetch(ENDPOINTS.categoriesEntree);
+        state.categoriesEntree = payload.data || [];
+
+        const filterSelect = document.getElementById("filterCategorieEntree");
+        const modalSelect = document.getElementById("entreeCategorie");
+        const opts = state.categoriesEntree.map(c => `<option value="${c.id}">${escapeHtml(c.libelle)}</option>`).join("");
+        filterSelect.innerHTML = `<option value="">Toutes les catégories</option>${opts}`;
+        modalSelect.innerHTML = `<option value="">-- Choisir --</option>${opts}`;
+
+        renderCategoriesEntreeTable();
+      }
+
+      async function loadCategoriesSortie() {
+        const payload = await apiFetch(ENDPOINTS.categoriesSortie);
+        state.categoriesSortie = payload.data || [];
+
+        const filterSelect = document.getElementById("filterCategorieSortie");
+        const modalSelect = document.getElementById("sortieCategorie");
+        const opts = state.categoriesSortie.map(c => `<option value="${c.id}">${escapeHtml(c.libelle)}</option>`).join("");
+        filterSelect.innerHTML = `<option value="">Toutes les catégories</option>${opts}`;
+        modalSelect.innerHTML = `<option value="">-- Choisir --</option>${opts}`;
+
+        renderCategoriesSortieTable();
+      }
+
+      function renderCategoriesEntreeTable() {
+        const tbody = document.querySelector("#tableCategoriesEntree tbody");
+        if (!state.categoriesEntree.length) {
+          tbody.innerHTML = `<tr><td colspan="3" class="grid-empty">Aucune catégorie d'entrée</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = state.categoriesEntree.map(c => `
+          <tr>
+            <td class="fw-semibold">${escapeHtml(c.libelle)}</td>
+            <td class="text-muted" style="font-size:12px;">${escapeHtml(c.description || "—")}</td>
+            <td class="text-end">
+              <button class="btn btn-light btn-sm" title="Modifier" onclick="FinancesPage.editCategorieEntree(${c.id})"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-light btn-sm text-danger" title="Supprimer" onclick="FinancesPage.deleteCategorieEntree(${c.id}, '${escapeHtml(c.libelle).replace(/'/g, "\\'")}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      function renderCategoriesSortieTable() {
+        const tbody = document.querySelector("#tableCategoriesSortie tbody");
+        if (!state.categoriesSortie.length) {
+          tbody.innerHTML = `<tr><td colspan="3" class="grid-empty">Aucune catégorie de sortie</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = state.categoriesSortie.map(c => `
+          <tr>
+            <td class="fw-semibold">${escapeHtml(c.libelle)}</td>
+            <td class="text-muted" style="font-size:12px;">${escapeHtml(c.description || "—")}</td>
+            <td class="text-end">
+              <button class="btn btn-light btn-sm" title="Modifier" onclick="FinancesPage.editCategorieSortie(${c.id})"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-light btn-sm text-danger" title="Supprimer" onclick="FinancesPage.deleteCategorieSortie(${c.id}, '${escapeHtml(c.libelle).replace(/'/g, "\\'")}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      /* ═══════════════════════════════════════
+         CHARGEMENT DES ENTRÉES / SORTIES
+      ═══════════════════════════════════════ */
+      async function loadEntrees() {
+        const url = (state.dateDebut && state.dateFin)
+          ? ENDPOINTS.entreesPlageDates(state.dateDebut, state.dateFin)
+          : ENDPOINTS.entrees;
+        const payload = await apiFetch(url);
+        state.entrees = payload.data || [];
+
+        const selectFinance = document.getElementById("sortieEntree");
+        const opts = state.entrees.map(e =>
+          `<option value="${e.id}" data-disponible="${e.montant_disponible}">${escapeHtml(e.libelle)} (disponible : ${formatMontant(e.montant_disponible)})</option>`
+        ).join("");
+        selectFinance.innerHTML = `<option value="">-- Non rattachée --</option>${opts}`;
+
+        renderEntreesTable();
+      }
+
+      async function loadSorties() {
+        const url = (state.dateDebut && state.dateFin)
+          ? ENDPOINTS.sortiesPlageDates(state.dateDebut, state.dateFin)
+          : ENDPOINTS.sorties;
+        const payload = await apiFetch(url);
+        state.sorties = payload.data || [];
+        renderSortiesTable();
+      }
+
+      function renderEntreesTable() {
+        const tbody = document.querySelector("#tableEntrees tbody");
+        const catFiltre = document.getElementById("filterCategorieEntree").value;
+        let rows = state.entrees.slice();
+        if (catFiltre) rows = rows.filter(e => String(e.categorie_entree_id) === String(catFiltre));
+        rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+        document.getElementById("entreesCount").textContent = rows.length;
+
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty">Aucune entrée trouvée</td></tr>`;
+        } else {
+          tbody.innerHTML = rows.map(e => `
+            <tr>
+              <td style="font-size:12px;">${formatDate(e.date)}</td>
+              <td>
+                <div class="fw-semibold" style="font-size:12.5px;">${escapeHtml(e.libelle)}</div>
+                ${e.description ? `<div class="text-muted" style="font-size:11px;">${escapeHtml(e.description)}</div>` : ""}
+              </td>
+              <td><span class="badge badge-primary">${escapeHtml((e.categorie_entree || {}).libelle || "—")}</span></td>
+              <td class="text-end montant-entree">${formatMontant(e.montant)}</td>
+              <td class="text-end text-muted">${formatMontant(e.montant_sorti)}</td>
+              <td class="text-end fw-semibold">${formatMontant(e.montant_disponible)}</td>
+              <td class="text-end">
+                <button class="btn btn-light btn-sm" title="Modifier" onclick="FinancesPage.editEntree(${e.id})"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-light btn-sm text-danger" title="Supprimer" onclick="FinancesPage.deleteEntree(${e.id}, '${escapeHtml(e.libelle).replace(/'/g, "\\'")}')"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>
+          `).join("");
+        }
+
+        const totalMontant = rows.reduce((s, e) => s + Number(e.montant || 0), 0);
+        const totalDispo = rows.reduce((s, e) => s + Number(e.montant_disponible || 0), 0);
+        document.getElementById("entreesTotaux").textContent =
+          `Total : ${formatMontant(totalMontant)}  •  Disponible : ${formatMontant(totalDispo)}`;
+      }
+
+      function renderSortiesTable() {
+        const tbody = document.querySelector("#tableSorties tbody");
+        const catFiltre = document.getElementById("filterCategorieSortie").value;
+        const financeFiltre = document.getElementById("filterFinancement").value;
+        let rows = state.sorties.slice();
+        if (catFiltre) rows = rows.filter(s => String(s.categorie_sortie_id) === String(catFiltre));
+        if (financeFiltre === "financee") rows = rows.filter(s => !!s.entree_id);
+        if (financeFiltre === "libre") rows = rows.filter(s => !s.entree_id);
+        rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+        document.getElementById("sortiesCount").textContent = rows.length;
+
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty">Aucune sortie trouvée</td></tr>`;
+        } else {
+          tbody.innerHTML = rows.map(s => `
+            <tr>
+              <td style="font-size:12px;">${formatDate(s.date)}</td>
+              <td>
+                <div class="fw-semibold" style="font-size:12.5px;">${escapeHtml(s.libelle)}</div>
+                ${s.description ? `<div class="text-muted" style="font-size:11px;">${escapeHtml(s.description)}</div>` : ""}
+              </td>
+              <td><span class="badge badge-neutral">${escapeHtml((s.categorie_sortie || {}).libelle || "—")}</span></td>
+              <td>
+                ${s.entree ? `<span class="badge badge-financee"><i class="fa-solid fa-link me-1"></i>${escapeHtml(s.entree.libelle)}</span>`
+                           : `<span class="badge badge-libre">Non rattachée</span>`}
+              </td>
+              <td class="text-end montant-sortie">${formatMontant(s.montant)}</td>
+              <td class="text-end">
+                <button class="btn btn-light btn-sm" title="Modifier" onclick="FinancesPage.editSortie(${s.id})"><i class="fa-solid fa-pen"></i></button>
+                ${s.entree_id
+                  ? `<button class="btn btn-light btn-sm" title="Détacher de l'entrée" onclick="FinancesPage.detacherSortie(${s.id})"><i class="fa-solid fa-link-slash"></i></button>`
+                  : ""}
+                <button class="btn btn-light btn-sm text-danger" title="Supprimer" onclick="FinancesPage.deleteSortie(${s.id}, '${escapeHtml(s.libelle).replace(/'/g, "\\'")}')"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>
+          `).join("");
+        }
+
+        const totalMontant = rows.reduce((s, e) => s + Number(e.montant || 0), 0);
+        document.getElementById("sortiesTotaux").textContent = `Total : ${formatMontant(totalMontant)}`;
+      }
+
+      /* ═══════════════════════════════════════
+         STATS / TOTAUX
+      ═══════════════════════════════════════ */
+      async function loadTotaux() {
+        const payload = await apiFetch(ENDPOINTS.totaux(state.dateDebut, state.dateFin));
+        const d = payload.data;
+        document.getElementById("statTotalEntrees").textContent = formatMontant(d.total_entrees);
+        document.getElementById("statTotalSorties").textContent = formatMontant(d.total_sorties);
+        const soldeEl = document.getElementById("statSolde");
+        soldeEl.textContent = formatMontant(d.solde);
+        soldeEl.className = "stat-value " + (d.solde >= 0 ? "montant-solde-pos" : "montant-solde-neg");
+      }
+
+      function refreshCounts() {
+        document.getElementById("statNbEntrees").textContent = `${state.entrees.length} entrée(s)`;
+        document.getElementById("statNbSorties").textContent = `${state.sorties.length} sortie(s)`;
+        const totalDispo = state.entrees.reduce((s, e) => s + Number(e.montant_disponible || 0), 0);
+        document.getElementById("statDisponible").textContent = formatMontant(totalDispo);
+      }
+
+      /* ═══════════════════════════════════════
+         GRAPHIQUES
+      ═══════════════════════════════════════ */
+      function buildCategorieChart(canvasId, emptyId, rows, categories, catIdField) {
+        const ctx = document.getElementById(canvasId);
+        const emptyEl = document.getElementById(emptyId);
+
+        const totalsByCategorie = {};
+        rows.forEach(r => {
+          const key = r[catIdField] || "none";
+          totalsByCategorie[key] = (totalsByCategorie[key] || 0) + Number(r.montant || 0);
+        });
+
+        const labels = [];
+        const data = [];
+        categories.forEach(c => {
+          if (totalsByCategorie[c.id]) {
+            labels.push(c.libelle);
+            data.push(totalsByCategorie[c.id]);
+          }
+        });
+
+        if (!data.length) {
+          ctx.style.display = "none";
+          emptyEl.style.display = "block";
+          return null;
+        }
+        ctx.style.display = "block";
+        emptyEl.style.display = "none";
+
+        return new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels,
+            datasets: [{
+              data,
+              backgroundColor: labels.map((_, i) => PALETTE[i % PALETTE.length]),
+              borderWidth: 2,
+              borderColor: "#FFFFFF"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: "60%",
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 }, color: cssVar("--ta-text-muted") } },
+              tooltip: { callbacks: { label: (c) => ` ${c.label} : ${formatMontant(c.raw)}` } }
+            }
+          }
+        });
+      }
+
+      function renderCharts() {
+        if (chartEntrees) { chartEntrees.destroy(); chartEntrees = null; }
+        if (chartSorties) { chartSorties.destroy(); chartSorties = null; }
+        chartEntrees = buildCategorieChart("chartEntrees", "chartEntreesEmpty", state.entrees, state.categoriesEntree, "categorie_entree_id");
+        chartSorties = buildCategorieChart("chartSorties", "chartSortiesEmpty", state.sorties, state.categoriesSortie, "categorie_sortie_id");
+      }
+
+      /* ═══════════════════════════════════════
+         JOURNAL FINANCIER (par catégorie d'entrée)
+      ═══════════════════════════════════════ */
+      function buildJournalData() {
+        // Regroupe les entrées par catégorie, chaque entrée avec ses sorties rattachées.
+        const groupes = state.categoriesEntree.map(cat => {
+          const entreesCat = state.entrees.filter(e => e.categorie_entree_id === cat.id);
+          const items = entreesCat.map(e => {
+            const sortiesLiees = state.sorties.filter(s => s.entree_id === e.id);
+            return { entree: e, sorties: sortiesLiees };
+          });
+          const totalEntrees = entreesCat.reduce((s, e) => s + Number(e.montant || 0), 0);
+          const totalSortiesLiees = items.reduce((s, it) => s + it.sorties.reduce((s2, so) => s2 + Number(so.montant || 0), 0), 0);
+          return { categorie: cat, items, totalEntrees, totalSortiesLiees, solde: totalEntrees - totalSortiesLiees };
+        }).filter(g => g.items.length > 0);
+
+        // Sorties non rattachées à une entrée, groupées par catégorie de sortie.
+        const sortiesLibres = state.sorties.filter(s => !s.entree_id);
+        const groupesLibres = state.categoriesSortie.map(cat => {
+          const list = sortiesLibres.filter(s => s.categorie_sortie_id === cat.id);
+          const total = list.reduce((s, so) => s + Number(so.montant || 0), 0);
+          return { categorie: cat, sorties: list, total };
+        }).filter(g => g.sorties.length > 0);
+
+        const totalGlobalEntrees = state.entrees.reduce((s, e) => s + Number(e.montant || 0), 0);
+        const totalGlobalSorties = state.sorties.reduce((s, e) => s + Number(e.montant || 0), 0);
+
+        return { groupes, groupesLibres, totalGlobalEntrees, totalGlobalSorties, solde: totalGlobalEntrees - totalGlobalSorties };
+      }
+
+      function renderJournalScreen() {
+        const container = document.getElementById("journalScreen");
+        const { groupes, groupesLibres, totalGlobalEntrees, totalGlobalSorties, solde } = buildJournalData();
+
+        if (!groupes.length && !groupesLibres.length) {
+          container.innerHTML = `<div class="grid-empty">Aucune donnée financière pour la période sélectionnée</div>`;
+          return;
+        }
+
+        let html = "";
+
+        groupes.forEach(g => {
+          html += `<div class="journal-categorie">
+            <div class="journal-categorie-header">
+              <span class="cat-nom"><i class="fa-solid fa-folder-open me-1 text-primary"></i>${escapeHtml(g.categorie.libelle)}</span>
+              <span class="cat-totaux">
+                <span>Entrées : <strong class="montant-entree">${formatMontant(g.totalEntrees)}</strong></span>
+                <span>Sorties liées : <strong class="montant-sortie">${formatMontant(g.totalSortiesLiees)}</strong></span>
+                <span>Solde : <strong class="${g.solde >= 0 ? 'montant-solde-pos' : 'montant-solde-neg'}">${formatMontant(g.solde)}</strong></span>
+              </span>
+            </div>`;
+          g.items.forEach(it => {
+            html += `<div class="journal-entree-bloc">
+              <div class="journal-entree-ligne">
+                <div>
+                  <span class="lib">${escapeHtml(it.entree.libelle)}</span>
+                  <span class="meta ms-2">${formatDate(it.entree.date)}</span>
+                </div>
+                <div class="montant-entree">${formatMontant(it.entree.montant)}</div>
+              </div>`;
+            if (it.sorties.length) {
+              html += `<div class="journal-sorties-liste">`;
+              it.sorties.forEach(so => {
+                html += `<div class="journal-sortie-ligne">
+                  <span><i class="fa-solid fa-arrow-turn-up fa-rotate-90 me-1"></i>${escapeHtml(so.libelle)} <span class="text-muted">(${escapeHtml((so.categorie_sortie || {}).libelle || '—')})</span></span>
+                  <span class="montant-sortie">- ${formatMontant(so.montant)}</span>
+                </div>`;
+              });
+              html += `</div>`;
+            }
+            html += `</div>`;
+          });
+          html += `</div>`;
+        });
+
+        if (groupesLibres.length) {
+          html += `<div class="journal-categorie">
+            <div class="journal-categorie-header">
+              <span class="cat-nom"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Sorties non rattachées à une entrée</span>
+            </div>`;
+          groupesLibres.forEach(g => {
+            html += `<div class="journal-entree-bloc">
+              <div class="journal-entree-ligne">
+                <span class="lib">${escapeHtml(g.categorie.libelle)}</span>
+                <span class="montant-sortie">${formatMontant(g.total)}</span>
+              </div>
+              <div class="journal-sorties-liste">`;
+            g.sorties.forEach(so => {
+              html += `<div class="journal-sortie-ligne">
+                <span>${escapeHtml(so.libelle)} <span class="meta">${formatDate(so.date)}</span></span>
+                <span class="montant-sortie">- ${formatMontant(so.montant)}</span>
+              </div>`;
+            });
+            html += `</div></div>`;
+          });
+          html += `</div>`;
+        }
+
+        html += `<div class="journal-footer-global">
+          <div class="item"><span class="label">Total entrées</span><span class="val montant-entree">${formatMontant(totalGlobalEntrees)}</span></div>
+          <div class="item"><span class="label">Total sorties</span><span class="val montant-sortie">${formatMontant(totalGlobalSorties)}</span></div>
+          <div class="item"><span class="label">Solde</span><span class="val ${solde >= 0 ? 'montant-solde-pos' : 'montant-solde-neg'}">${formatMontant(solde)}</span></div>
+        </div>`;
+
+        container.innerHTML = html;
+      }
+
+      function buildJournalPrintHtml() {
+        const { groupes, groupesLibres, totalGlobalEntrees, totalGlobalSorties, solde } = buildJournalData();
+        const periode = (state.dateDebut && state.dateFin)
+          ? `Période du ${formatDate(state.dateDebut)} au ${formatDate(state.dateFin)}`
+          : `Toutes périodes confondues`;
+
+        let html = `
+          <div class="print-header">
+            <h1>Journal financier</h1>
+            <div class="etab">${escapeHtml(ETABLISSEMENT.nom)} — ${escapeHtml(ETABLISSEMENT.adresse)}</div>
+            <div class="periode">${periode}</div>
+          </div>
+          <div class="print-meta">
+            <span>Document généré le ${new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })} à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+            <span>Classement par catégorie d'entrée</span>
+          </div>
+        `;
+
+        if (!groupes.length && !groupesLibres.length) {
+          html += `<p style="text-align:center;color:#777;margin-top:30px;">Aucune donnée financière pour cette période.</p>`;
+        }
+
+        groupes.forEach(g => {
+          html += `<div class="print-cat">
+            <div class="print-cat-title">${escapeHtml(g.categorie.libelle)}</div>
+            <table class="print-table">
+              <thead>
+                <tr><th>Date</th><th>Libellé</th><th class="num">Entrée</th><th class="num">Sortie</th></tr>
+              </thead>
+              <tbody>`;
+          g.items.forEach(it => {
+            html += `<tr>
+              <td>${formatDate(it.entree.date)}</td>
+              <td>${escapeHtml(it.entree.libelle)}</td>
+              <td class="num">${formatMontant(it.entree.montant)}</td>
+              <td class="num">—</td>
+            </tr>`;
+            it.sorties.forEach(so => {
+              html += `<tr class="print-sortie-row">
+                <td>${formatDate(so.date)}</td>
+                <td>↳ ${escapeHtml(so.libelle)} (${escapeHtml((so.categorie_sortie || {}).libelle || "—")})</td>
+                <td class="num">—</td>
+                <td class="num">${formatMontant(so.montant)}</td>
+              </tr>`;
+            });
+          });
+          html += `<tr class="print-cat-total">
+            <td colspan="2">Sous-total ${escapeHtml(g.categorie.libelle)}</td>
+            <td class="num">${formatMontant(g.totalEntrees)}</td>
+            <td class="num">${formatMontant(g.totalSortiesLiees)}</td>
+          </tr>`;
+          html += `</tbody></table></div>`;
+        });
+
+        if (groupesLibres.length) {
+          html += `<div class="print-cat">
+            <div class="print-cat-title">Sorties non rattachées à une entrée</div>
+            <table class="print-table">
+              <thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th class="num">Montant</th></tr></thead>
+              <tbody>`;
+          groupesLibres.forEach(g => {
+            g.sorties.forEach(so => {
+              html += `<tr>
+                <td>${formatDate(so.date)}</td>
+                <td>${escapeHtml(so.libelle)}</td>
+                <td>${escapeHtml(g.categorie.libelle)}</td>
+                <td class="num">${formatMontant(so.montant)}</td>
+              </tr>`;
+            });
+          });
+          html += `</tbody></table></div>`;
+        }
+
+        html += `
+          <div class="print-global-totals">
+            <table>
+              <tr><td>Total des entrées</td><td class="num">${formatMontant(totalGlobalEntrees)}</td></tr>
+              <tr><td>Total des sorties</td><td class="num">${formatMontant(totalGlobalSorties)}</td></tr>
+              <tr><td>Solde</td><td class="num">${formatMontant(solde)}</td></tr>
+            </table>
+          </div>
+          <div class="print-signatures">
+            <div>Le Comptable</div>
+            <div>Le Directeur / La Directrice</div>
+          </div>
+        `;
+
+        return html;
+      }
+
+      function imprimerJournal() {
+        document.getElementById("journalPrintable").innerHTML = buildJournalPrintHtml();
+        window.print();
+      }
+
+      /* ═══════════════════════════════════════
+         CRUD : CATÉGORIES
+      ═══════════════════════════════════════ */
+      function openModalCategorie(type, categorie) {
+        const isEdit = !!categorie;
+        document.getElementById("categorieFormError").classList.add("d-none");
+        document.getElementById("categorieType").value = type;
+        document.getElementById("categorieId").value = isEdit ? categorie.id : "";
+        document.getElementById("categorieLibelle").value = isEdit ? categorie.libelle : "";
+        document.getElementById("categorieDescription").value = isEdit ? (categorie.description || "") : "";
+        document.getElementById("modalCategorieTitle").innerHTML =
+          `<i class="fa-solid fa-tag me-2 text-primary"></i>${isEdit ? "Modifier" : "Nouvelle"} catégorie ${type === "entree" ? "d'entrée" : "de sortie"}`;
+        new bootstrap.Modal(document.getElementById("modalCategorie")).show();
+      }
+
+      document.getElementById("btnNouvelleCategorieEntree").addEventListener("click", () => openModalCategorie("entree", null));
+      document.getElementById("btnNouvelleCategorieSortie").addEventListener("click", () => openModalCategorie("sortie", null));
+
+      document.getElementById("btnEnregistrerCategorie").addEventListener("click", async () => {
+        const errorEl = document.getElementById("categorieFormError");
+        errorEl.classList.add("d-none");
+        const type = document.getElementById("categorieType").value;
+        const id = document.getElementById("categorieId").value;
+        const libelle = document.getElementById("categorieLibelle").value.trim();
+        if (!libelle) {
+          errorEl.textContent = "Le libellé est obligatoire.";
+          errorEl.classList.remove("d-none");
+          return;
+        }
+        const body = { libelle, description: document.getElementById("categorieDescription").value.trim() || null };
+        const endpointBase = type === "entree" ? ENDPOINTS.categoriesEntree : ENDPOINTS.categoriesSortie;
+        const endpointById = type === "entree" ? ENDPOINTS.categorieEntreeById : ENDPOINTS.categorieSortieById;
+        try {
+          if (id) {
+            await apiFetch(endpointById(id), { method: "PUT", body: JSON.stringify(body) });
+          } else {
+            await apiFetch(endpointBase, { method: "POST", body: JSON.stringify(body) });
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalCategorie"))?.hide();
+          showToast("Catégorie enregistrée.");
+          await (type === "entree" ? loadCategoriesEntree() : loadCategoriesSortie());
+        } catch (e) {
+          errorEl.textContent = e.message;
+          errorEl.classList.remove("d-none");
+        }
+      });
+
+      window.FinancesPage = window.FinancesPage || {};
+
+      FinancesPage.editCategorieEntree = (id) => {
+        const cat = state.categoriesEntree.find(c => c.id === id);
+        if (cat) openModalCategorie("entree", cat);
+      };
+      FinancesPage.editCategorieSortie = (id) => {
+        const cat = state.categoriesSortie.find(c => c.id === id);
+        if (cat) openModalCategorie("sortie", cat);
+      };
+      FinancesPage.deleteCategorieEntree = (id, libelle) => {
+        askConfirmation(`Supprimer la catégorie « ${libelle} » ? Elle ne doit contenir aucune entrée.`, async () => {
+          try {
+            await apiFetch(ENDPOINTS.categorieEntreeById(id), { method: "DELETE" });
+            showToast("Catégorie supprimée.");
+            await loadCategoriesEntree();
+          } catch (e) { showToast(e.message, "error"); }
+        });
+      };
+      FinancesPage.deleteCategorieSortie = (id, libelle) => {
+        askConfirmation(`Supprimer la catégorie « ${libelle} » ? Elle ne doit contenir aucune sortie.`, async () => {
+          try {
+            await apiFetch(ENDPOINTS.categorieSortieById(id), { method: "DELETE" });
+            showToast("Catégorie supprimée.");
+            await loadCategoriesSortie();
+          } catch (e) { showToast(e.message, "error"); }
+        });
+      };
+
+      /* ═══════════════════════════════════════
+         CRUD : ENTRÉES
+      ═══════════════════════════════════════ */
+      function openModalEntree(entree) {
+        const isEdit = !!entree;
+        document.getElementById("entreeFormError").classList.add("d-none");
+        document.getElementById("entreeId").value = isEdit ? entree.id : "";
+        document.getElementById("entreeLibelle").value = isEdit ? entree.libelle : "";
+        document.getElementById("entreeCategorie").value = isEdit ? entree.categorie_entree_id : "";
+        document.getElementById("entreeMontant").value = isEdit ? entree.montant : "";
+        document.getElementById("entreeDate").value = isEdit ? entree.date : todayIso();
+        document.getElementById("entreeDescription").value = isEdit ? (entree.description || "") : "";
+        document.getElementById("modalEntreeTitle").innerHTML =
+          `<i class="fa-solid fa-arrow-down me-2 text-success"></i>${isEdit ? "Modifier" : "Nouvelle"} entrée`;
+        new bootstrap.Modal(document.getElementById("modalEntree")).show();
+      }
+
+      document.getElementById("btnNouvelleEntree").addEventListener("click", () => openModalEntree(null));
+      document.getElementById("btnNouvelleEntree2").addEventListener("click", () => openModalEntree(null));
+
+      document.getElementById("btnEnregistrerEntree").addEventListener("click", async () => {
+        const errorEl = document.getElementById("entreeFormError");
+        errorEl.classList.add("d-none");
+        const id = document.getElementById("entreeId").value;
+        const libelle = document.getElementById("entreeLibelle").value.trim();
+        const categorie_entree_id = document.getElementById("entreeCategorie").value;
+        const montant = document.getElementById("entreeMontant").value;
+        const date = document.getElementById("entreeDate").value;
+        if (!libelle || !categorie_entree_id || !montant || !date) {
+          errorEl.textContent = "Veuillez remplir tous les champs obligatoires.";
+          errorEl.classList.remove("d-none");
+          return;
+        }
+        const body = {
+          libelle,
+          categorie_entree_id: Number(categorie_entree_id),
+          montant: Number(montant),
+          date,
+          description: document.getElementById("entreeDescription").value.trim() || null
+        };
+        try {
+          if (id) {
+            await apiFetch(ENDPOINTS.entreeById(id), { method: "PUT", body: JSON.stringify(body) });
+          } else {
+            await apiFetch(ENDPOINTS.entrees, { method: "POST", body: JSON.stringify(body) });
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalEntree"))?.hide();
+          showToast("Entrée enregistrée.");
+          await refreshAll();
+        } catch (e) {
+          errorEl.textContent = e.message;
+          errorEl.classList.remove("d-none");
+        }
+      });
+
+      FinancesPage.editEntree = (id) => {
+        const entree = state.entrees.find(e => e.id === id);
+        if (entree) openModalEntree(entree);
+      };
+      FinancesPage.deleteEntree = (id, libelle) => {
+        askConfirmation(`Supprimer l'entrée « ${libelle} » ? Elle ne doit financer aucune sortie.`, async () => {
+          try {
+            await apiFetch(ENDPOINTS.entreeById(id), { method: "DELETE" });
+            showToast("Entrée supprimée.");
+            await refreshAll();
+          } catch (e) { showToast(e.message, "error"); }
+        });
+      };
+
+      /* ═══════════════════════════════════════
+         CRUD : SORTIES
+      ═══════════════════════════════════════ */
+      function openModalSortie(sortie) {
+        const isEdit = !!sortie;
+        document.getElementById("sortieFormError").classList.add("d-none");
+        document.getElementById("sortieId").value = isEdit ? sortie.id : "";
+        document.getElementById("sortieLibelle").value = isEdit ? sortie.libelle : "";
+        document.getElementById("sortieCategorie").value = isEdit ? sortie.categorie_sortie_id : "";
+        document.getElementById("sortieMontant").value = isEdit ? sortie.montant : "";
+        document.getElementById("sortieDate").value = isEdit ? sortie.date : todayIso();
+        document.getElementById("sortieEntree").value = isEdit && sortie.entree_id ? sortie.entree_id : "";
+        document.getElementById("sortieDescription").value = isEdit ? (sortie.description || "") : "";
+        document.getElementById("sortieEntreeDisponible").textContent = "";
+        document.getElementById("modalSortieTitle").innerHTML =
+          `<i class="fa-solid fa-arrow-up me-2 text-danger"></i>${isEdit ? "Modifier" : "Nouvelle"} sortie`;
+        new bootstrap.Modal(document.getElementById("modalSortie")).show();
+      }
+
+      document.getElementById("btnNouvelleSortie").addEventListener("click", () => openModalSortie(null));
+      document.getElementById("btnNouvelleSortie2").addEventListener("click", () => openModalSortie(null));
+
+      document.getElementById("sortieEntree").addEventListener("change", (e) => {
+        const opt = e.target.selectedOptions[0];
+        const dispo = opt ? opt.dataset.disponible : null;
+        document.getElementById("sortieEntreeDisponible").textContent =
+          dispo ? `Montant disponible sur cette entrée : ${formatMontant(dispo)}` : "";
+      });
+
+      document.getElementById("btnEnregistrerSortie").addEventListener("click", async () => {
+        const errorEl = document.getElementById("sortieFormError");
+        errorEl.classList.add("d-none");
+        const id = document.getElementById("sortieId").value;
+        const libelle = document.getElementById("sortieLibelle").value.trim();
+        const categorie_sortie_id = document.getElementById("sortieCategorie").value;
+        const montant = document.getElementById("sortieMontant").value;
+        const date = document.getElementById("sortieDate").value;
+        const entree_id = document.getElementById("sortieEntree").value;
+        if (!libelle || !categorie_sortie_id || !montant || !date) {
+          errorEl.textContent = "Veuillez remplir tous les champs obligatoires.";
+          errorEl.classList.remove("d-none");
+          return;
+        }
+        const body = {
+          libelle,
+          categorie_sortie_id: Number(categorie_sortie_id),
+          montant: Number(montant),
+          date,
+          description: document.getElementById("sortieDescription").value.trim() || null
+        };
+        if (!id) {
+          // La création accepte directement un entree_id optionnel.
+          body.entree_id = entree_id ? Number(entree_id) : null;
+        }
+        try {
+          if (id) {
+            await apiFetch(ENDPOINTS.sortieById(id), { method: "PUT", body: JSON.stringify(body) });
+            // Gérer le (dé)rattachement séparément à la mise à jour, si modifié.
+            const sortieActuelle = state.sorties.find(s => s.id === Number(id));
+            const ancienEntreeId = sortieActuelle ? sortieActuelle.entree_id : null;
+            const nouvelEntreeId = entree_id ? Number(entree_id) : null;
+            if (nouvelEntreeId !== ancienEntreeId) {
+              if (nouvelEntreeId) {
+                await apiFetch(ENDPOINTS.attacherEntree(id), { method: "POST", body: JSON.stringify({ entree_id: nouvelEntreeId }) });
+              } else {
+                await apiFetch(ENDPOINTS.detacherEntree(id), { method: "POST" });
+              }
+            }
+          } else {
+            await apiFetch(ENDPOINTS.sorties, { method: "POST", body: JSON.stringify(body) });
+          }
+          bootstrap.Modal.getInstance(document.getElementById("modalSortie"))?.hide();
+          showToast("Sortie enregistrée.");
+          await refreshAll();
+        } catch (e) {
+          errorEl.textContent = e.message;
+          errorEl.classList.remove("d-none");
+        }
+      });
+
+      FinancesPage.editSortie = (id) => {
+        const sortie = state.sorties.find(s => s.id === id);
+        if (sortie) openModalSortie(sortie);
+      };
+      FinancesPage.deleteSortie = (id, libelle) => {
+        askConfirmation(`Supprimer la sortie « ${libelle} » ?`, async () => {
+          try {
+            await apiFetch(ENDPOINTS.sortieById(id), { method: "DELETE" });
+            showToast("Sortie supprimée.");
+            await refreshAll();
+          } catch (e) { showToast(e.message, "error"); }
+        });
+      };
+      FinancesPage.detacherSortie = (id) => {
+        askConfirmation(`Détacher cette sortie de son entrée de financement ?`, async () => {
+          try {
+            await apiFetch(ENDPOINTS.detacherEntree(id), { method: "POST" });
+            showToast("Sortie détachée.");
+            await refreshAll();
+          } catch (e) { showToast(e.message, "error"); }
+        });
+      };
+
+      /* ═══════════════════════════════════════
+         FILTRES
+      ═══════════════════════════════════════ */
+      document.getElementById("filterCategorieEntree").addEventListener("change", renderEntreesTable);
+      document.getElementById("filterCategorieSortie").addEventListener("change", renderSortiesTable);
+      document.getElementById("filterFinancement").addEventListener("change", renderSortiesTable);
+
+      document.getElementById("btnAppliquerPeriode").addEventListener("click", async () => {
+        const d1 = document.getElementById("filterDateDebut").value;
+        const d2 = document.getElementById("filterDateFin").value;
+        if ((d1 && !d2) || (!d1 && d2)) {
+          showToast("Veuillez renseigner les deux dates (début et fin).", "error");
+          return;
+        }
+        state.dateDebut = d1 || null;
+        state.dateFin = d2 || null;
+        await refreshAll();
+        showToast("Période appliquée.");
+      });
+
+      document.getElementById("btnReinitialiserPeriode").addEventListener("click", async () => {
+        document.getElementById("filterDateDebut").value = "";
+        document.getElementById("filterDateFin").value = "";
+        state.dateDebut = null;
+        state.dateFin = null;
+        await refreshAll();
+        showToast("Période réinitialisée.");
+      });
+
+      /* ═══════════════════════════════════════
+         ACTUALISATION / IMPRESSION
+      ═══════════════════════════════════════ */
+      document.getElementById("btnRefresh").addEventListener("click", async () => {
+        await refreshAll();
+        showToast("Données actualisées.");
+      });
+
+      document.getElementById("btnImprimerJournal").addEventListener("click", imprimerJournal);
+      document.getElementById("btnImprimerJournal2").addEventListener("click", imprimerJournal);
+
+      document.querySelectorAll("#financesTabs button[data-bs-toggle='tab']").forEach((btn) => {
+        btn.addEventListener("shown.bs.tab", (e) => {
+          if (e.target.id === "tab-journal") renderJournalScreen();
+        });
+      });
+
+      /* ═══════════════════════════════════════
+         RAFRAÎCHISSEMENT GLOBAL / INIT
+      ═══════════════════════════════════════ */
+      async function refreshAll() {
+        await Promise.all([loadEntrees(), loadSorties()]);
+        refreshCounts();
+        renderCharts();
+        renderJournalScreen();
+        await loadTotaux();
+      }
+
+      async function init() {
+        try {
+          await Promise.all([loadCategoriesEntree(), loadCategoriesSortie()]);
+          await refreshAll();
+        } catch (e) {
+          showToast(`Erreur de chargement : ${e.message}`, "error");
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+</body>
+</html>

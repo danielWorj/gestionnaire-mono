@@ -9,6 +9,7 @@ from api.inscription_api import inscription_bp
 from api.parent_api import parent_bp
 from api.evaluation_api import evaluation_bp
 from api.paiements_api import paiements_bp
+from api.finances_api import finances_bp
 
 from pathlib import Path
 import os
@@ -44,7 +45,7 @@ def create_app(config_name=None):
     app.register_blueprint(parent_bp)
     app.register_blueprint(evaluation_bp)
     app.register_blueprint(paiements_bp)
-
+    app.register_blueprint(finances_bp)
     # Route de test
     @app.route('/health')
     def health():
@@ -96,6 +97,9 @@ def create_app(config_name=None):
     @app.route('/parent')
     def parent_page():
         return render_template('parent.html')
+    @app.route('/finances')
+    def finances_page():
+        return render_template('finances.html')
     @app.route('/')
     @app.route('/index')
     def index_page():
