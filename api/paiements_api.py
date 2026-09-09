@@ -46,6 +46,34 @@ def get_tranches_by_annee(annee_scolaire_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@paiements_bp.route('/classes/<int:classe_id>/tranches', methods=['GET'])
+def get_tranches_by_classe(classe_id):
+    """Récupérer les tranches de paiement d'une classe (toutes années confondues)"""
+    try:
+        tranches = TranchePaiementService.get_by_classe(classe_id)
+        return jsonify({
+            'success': True,
+            'data': [t.to_dict() for t in tranches],
+            'count': len(tranches)
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@paiements_bp.route('/annees/<int:annee_scolaire_id>/classes/<int:classe_id>/tranches', methods=['GET'])
+def get_tranches_by_annee_classe(annee_scolaire_id, classe_id):
+    """Récupérer les tranches de paiement d'une classe pour une année scolaire donnée"""
+    try:
+        tranches = TranchePaiementService.get_by_annee_classe(annee_scolaire_id, classe_id)
+        return jsonify({
+            'success': True,
+            'data': [t.to_dict() for t in tranches],
+            'count': len(tranches)
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @paiements_bp.route('/tranches/<int:id>/total-verse', methods=['GET'])
 def get_total_verse_tranche(id):
     """Récupérer le total versé (toutes inscriptions) pour une tranche"""
@@ -62,7 +90,7 @@ def create_tranche():
     try:
         data = request.get_json()
 
-        required_fields = ['annee_scolaire_id', 'libelle', 'montant_attendu']
+        required_fields = ['annee_scolaire_id', 'classe_id', 'libelle', 'montant_attendu']
         for field in required_fields:
             if field not in data:
                 return jsonify({'success': False, 'error': f'Champ {field} requis'}), 400
@@ -159,11 +187,15 @@ def get_paiements_by_tranche(tranche_paiement_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@paiements_bp.route('/inscriptions/<int:inscription_id>/situation/<int:annee_scolaire_id>', methods=['GET'])
-def get_situation_financiere(inscription_id, annee_scolaire_id):
-    """Récupérer la situation financière (récapitulatif) d'un élève pour une année scolaire"""
+@paiements_bp.route(
+    '/inscriptions/<int:inscription_id>/situation/<int:annee_scolaire_id>/<int:classe_id>',
+    methods=['GET']
+)
+def get_situation_financiere(inscription_id, annee_scolaire_id, classe_id):
+    """Récupérer la situation financière (récapitulatif) d'un élève pour une année
+    scolaire et une classe données (les tranches étant propres à une classe)."""
     try:
-        situation = PaiementService.get_situation_financiere(inscription_id, annee_scolaire_id)
+        situation = PaiementService.get_situation_financiere(inscription_id, annee_scolaire_id, classe_id)
         return jsonify({'success': True, 'data': situation}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -171,14 +203,35 @@ def get_situation_financiere(inscription_id, annee_scolaire_id):
 
 @paiements_bp.route('', methods=['POST'])
 def create_paiement():
-    """Enregistrer un nouveau paiement"""
+    """Enregistrer un nouveau paiement.
+
+    Un paiement couvre au minimum une tranche et au maximum n tranches, via
+    le champ 'tranches' :
+    {
+        'inscription_id': int,
+        'montant_verse': nombre,
+        'date_paiement': date (optionnel),
+        'mode_paiement': str (optionnel),
+        'tranches': [
+            {'tranche_paiement_id': int, 'montant_affecte': nombre},
+            ...
+        ]
+    }
+    La somme des montant_affecte doit être égale au montant_verse.
+    """
     try:
         data = request.get_json()
 
-        required_fields = ['inscription_id', 'tranche_paiement_id', 'montant_verse']
+        required_fields = ['inscription_id', 'montant_verse', 'tranches']
         for field in required_fields:
             if field not in data:
                 return jsonify({'success': False, 'error': f'Champ {field} requis'}), 400
+
+        if not isinstance(data.get('tranches'), list) or len(data['tranches']) < 1:
+            return jsonify({
+                'success': False,
+                'error': "Le champ 'tranches' doit être une liste non vide d'au moins une tranche"
+            }), 400
 
         paiement = PaiementService.create(data)
         return jsonify({'success': True, 'data': paiement.to_dict(), 'message': 'Paiement enregistré'}), 201
@@ -190,9 +243,19 @@ def create_paiement():
 
 @paiements_bp.route('/<int:id>', methods=['PUT'])
 def update_paiement(id):
-    """Mettre à jour un paiement"""
+    """Mettre à jour un paiement.
+
+    Si 'tranches' est fourni, il remplace entièrement la répartition existante
+    et doit rester une liste d'au moins une tranche."""
     try:
         data = request.get_json()
+
+        if 'tranches' in data and (not isinstance(data['tranches'], list) or len(data['tranches']) < 1):
+            return jsonify({
+                'success': False,
+                'error': "Le champ 'tranches' doit être une liste non vide d'au moins une tranche"
+            }), 400
+
         paiement = PaiementService.update(id, data)
         if paiement:
             return jsonify({'success': True, 'data': paiement.to_dict(), 'message': 'Paiement mis à jour'}), 200

@@ -194,6 +194,21 @@
     .bulletin-footer .signature { border-top: 1px solid #333; padding-top: 4px; width: 140px; text-align: center; font-weight: 600; }
 
     .bulletin-legende { font-size: 8.5px; color: #444; margin-top: 6px; }
+
+    /* Couleur des notes : noir pur par défaut, rouge si < 10/20 (bulletins + relevés imprimés).
+       Les couleurs sont forcées en !important pour ne jamais hériter d'un gris du CSS global
+       (--ta-text, --ta-text-muted, etc.) qui rendrait le texte imprimé plus clair que du noir pur. */
+    .bulletin-sheet, .print-sheet {
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact;
+      color: #000 !important;
+    }
+    .bulletin-sheet *, .print-sheet * {
+      color: #000 !important;
+    }
+    .note-rouge, .note-rouge * {
+      color: #C0182A !important; font-weight: 700;
+    }
+    .bulletin-sous-titre { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-top: 2px; color: #000 !important; }
   </style>
 </head>
 <body data-page="notes-saisie">
@@ -228,10 +243,10 @@
               <i class="fa-solid fa-file-excel"></i> Exporter Excel
             </button>
             <div class="vr mx-1"></div>
-            <button class="btn btn-outline-primary btn-sm" type="button" id="btnBulletinEleve" title="Générer le bulletin annuel d'un élève">
+            <button class="btn btn-outline-primary btn-sm" type="button" id="btnBulletinEleve" title="Générer le bulletin (séquentiel, trimestriel ou annuel) d'un élève">
               <i class="fa-solid fa-file-lines"></i> Bulletin élève
             </button>
-            <button class="btn btn-primary btn-sm" type="button" id="btnBulletinClasse" title="Générer les bulletins annuels de toute la classe">
+            <button class="btn btn-primary btn-sm" type="button" id="btnBulletinClasse" title="Générer les bulletins (séquentiels, trimestriels ou annuels) de toute la classe">
               <i class="fa-solid fa-people-group"></i> Bulletins de la classe
             </button>
           </div>
@@ -297,6 +312,12 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-statistiques" data-bs-toggle="tab"
+                    data-bs-target="#pane-statistiques" type="button" role="tab">
+              <i class="fa-solid fa-chart-line me-1"></i>Statistiques
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-discipline" data-bs-toggle="tab"
                     data-bs-target="#pane-discipline" type="button" role="tab">
               <i class="fa-solid fa-triangle-exclamation me-1"></i>Discipline
@@ -318,8 +339,43 @@
           <!-- ─────────── ONGLET 1 : SAISIE DES NOTES ─────────── -->
           <div class="tab-pane fade show active" id="pane-notes" role="tabpanel">
 
-            <!-- Graphiques : notes -->
-            <div class="row g-3 mb-3">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Notes — <span id="notesGridTitle">—</span>
+                </h2>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge badge-neutral" id="notesGridCount">0 note(s) saisie(s)</span>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="eval-grid-wrap" style="max-height:560px; overflow-y:auto;">
+                  <table class="eval-table" id="grilleNotes">
+                    <thead>
+                      <tr>
+                        <th class="eleve-col">Élève</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="1" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement de la grille…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card-footer">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Saisissez une note (0 à 20) puis quittez la case pour l'enregistrer. Utilisez « ABS » pour marquer un élève absent.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 2 : STATISTIQUES ─────────── -->
+          <div class="tab-pane fade" id="pane-statistiques" role="tabpanel">
+
+            <!-- Statistiques : notes -->
+            <h6 class="text-muted text-uppercase mb-2" style="font-size:11px; font-weight:700; letter-spacing:.04em;">
+              <i class="fa-solid fa-pen-to-square me-1"></i>Notes
+            </h6>
+            <div class="row g-3 mb-4">
               <div class="col-lg-5">
                 <div class="card h-100">
                   <div class="card-header">
@@ -354,40 +410,11 @@
               </div>
             </div>
 
-            <div class="card">
-              <div class="card-header">
-                <h2 class="card-title">
-                  <i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Notes — <span id="notesGridTitle">—</span>
-                </h2>
-                <div class="d-flex align-items-center gap-2">
-                  <span class="badge badge-neutral" id="notesGridCount">0 note(s) saisie(s)</span>
-                </div>
-              </div>
-              <div class="card-body p-0">
-                <div class="eval-grid-wrap" style="max-height:560px; overflow-y:auto;">
-                  <table class="eval-table" id="grilleNotes">
-                    <thead>
-                      <tr>
-                        <th class="eleve-col">Élève</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr><td colspan="1" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement de la grille…</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="card-footer">
-                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Saisissez une note (0 à 20) puis quittez la case pour l'enregistrer. Utilisez « ABS » pour marquer un élève absent.</small>
-              </div>
-            </div>
-          </div>
-
-          <!-- ─────────── ONGLET 2 : DISCIPLINE ─────────── -->
-          <div class="tab-pane fade" id="pane-discipline" role="tabpanel">
-
-            <!-- Graphiques : discipline -->
-            <div class="row g-3 mb-3">
+            <!-- Statistiques : discipline -->
+            <h6 class="text-muted text-uppercase mb-2" style="font-size:11px; font-weight:700; letter-spacing:.04em;">
+              <i class="fa-solid fa-triangle-exclamation me-1"></i>Discipline
+            </h6>
+            <div class="row g-3 mb-4">
               <div class="col-lg-5">
                 <div class="card h-100">
                   <div class="card-header">
@@ -422,6 +449,49 @@
                 </div>
               </div>
             </div>
+
+            <!-- Statistiques : moyennes -->
+            <h6 class="text-muted text-uppercase mb-2" style="font-size:11px; font-weight:700; letter-spacing:.04em;">
+              <i class="fa-solid fa-ranking-star me-1"></i>Moyennes
+            </h6>
+            <div class="row g-3">
+              <div class="col-lg-5">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition des appréciations
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartAppreciations" height="220"></canvas>
+                    <div id="chartAppreciationsEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-7">
+                <div class="card h-100">
+                  <div class="card-header">
+                    <h2 class="card-title">
+                      <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Classement des moyennes
+                    </h2>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="chartClassement" height="220"></canvas>
+                    <div id="chartClassementEmpty" class="text-center text-muted py-5" style="display:none;">
+                      <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
+                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── ONGLET 3 : DISCIPLINE ─────────── -->
+          <div class="tab-pane fade" id="pane-discipline" role="tabpanel">
 
             <div class="card">
               <div class="card-header">
@@ -465,44 +535,8 @@
             </div>
           </div>
 
-          <!-- ─────────── ONGLET 3 : MOYENNES ─────────── -->
+          <!-- ─────────── ONGLET 4 : MOYENNES ─────────── -->
           <div class="tab-pane fade" id="pane-moyennes" role="tabpanel">
-
-            <!-- Graphiques : moyennes -->
-            <div class="row g-3 mb-3">
-              <div class="col-lg-5">
-                <div class="card h-100">
-                  <div class="card-header">
-                    <h2 class="card-title">
-                      <i class="fa-solid fa-chart-pie me-2 text-primary"></i>Répartition des appréciations
-                    </h2>
-                  </div>
-                  <div class="card-body">
-                    <canvas id="chartAppreciations" height="220"></canvas>
-                    <div id="chartAppreciationsEmpty" class="text-center text-muted py-5" style="display:none;">
-                      <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
-                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-7">
-                <div class="card h-100">
-                  <div class="card-header">
-                    <h2 class="card-title">
-                      <i class="fa-solid fa-chart-bar me-2 text-primary"></i>Classement des moyennes
-                    </h2>
-                  </div>
-                  <div class="card-body">
-                    <canvas id="chartClassement" height="220"></canvas>
-                    <div id="chartClassementEmpty" class="text-center text-muted py-5" style="display:none;">
-                      <i class="fa-solid fa-chart-bar fa-2x mb-2"></i>
-                      <p class="mb-0" style="font-size:12px;">Aucune moyenne disponible pour l'instant</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             <div class="card">
               <div class="card-header">
@@ -569,17 +603,32 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title"><i class="fa-solid fa-file-lines me-2 text-primary"></i>Générer un bulletin</h5>
+          <h5 class="modal-title" id="modalBulletinTitle"><i class="fa-solid fa-file-lines me-2 text-primary"></i>Générer un bulletin</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-2" style="font-size:12px;" class="text-muted">
-            Le bulletin reprend toutes les séquences de l'année scolaire active pour la classe sélectionnée dans les filtres.
+          <div class="mb-3">
+            <label class="form-label" for="bulletinTypeSelect" style="font-size:12px;font-weight:600;">Type de bulletin</label>
+            <select class="form-select form-select-sm" id="bulletinTypeSelect">
+              <option value="sequentielle">Séquentiel — une séquence</option>
+              <option value="trimestrielle">Trimestriel — un trimestre</option>
+              <option value="annuelle" selected>Annuel — année complète</option>
+            </select>
           </div>
-          <label class="form-label" for="bulletinEleveSelect" style="font-size:12px;font-weight:600;">Élève</label>
-          <select class="form-select form-select-sm" id="bulletinEleveSelect">
-            <option value="">-- Choisir un élève --</option>
-          </select>
+
+          <div class="mb-3" id="bulletinTrimestreGroup" style="display:none;">
+            <label class="form-label" for="bulletinTrimestreSelect" style="font-size:12px;font-weight:600;">Trimestre</label>
+            <select class="form-select form-select-sm" id="bulletinTrimestreSelect"></select>
+          </div>
+
+          <div class="mb-3 text-muted" id="bulletinPorteeInfo" style="font-size:11.5px;"></div>
+
+          <div id="bulletinEleveGroup">
+            <label class="form-label" for="bulletinEleveSelect" style="font-size:12px;font-weight:600;">Élève</label>
+            <select class="form-select form-select-sm" id="bulletinEleveSelect">
+              <option value="">-- Choisir un élève --</option>
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
@@ -1725,8 +1774,15 @@
       function refreshActiveTab() {
         const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
         if (activeTab === "tab-notes") loadGrilleNotes();
+        else if (activeTab === "tab-statistiques") loadStatistiques();
         else if (activeTab === "tab-discipline") loadGrilleDiscipline();
         else loadGrilleMoyennes();
+      }
+
+      /* Charge les données des 3 onglets (notes, discipline, moyennes)
+         afin d'alimenter l'ensemble des graphiques de l'onglet Statistiques. */
+      async function loadStatistiques() {
+        await Promise.all([loadGrilleNotes(), loadGrilleDiscipline(), loadGrilleMoyennes()]);
       }
 
       function bindTabs() {
@@ -1814,9 +1870,12 @@
           const cells = matieres.map(mc => {
             const note = state.notesIndex[`${insc.id}|${mc.id}`];
             if (!note) return `<td>—</td>`;
-            return `<td>${note.absent ? "ABS" : Number(note.valeur).toFixed(2)}</td>`;
+            if (note.absent) return `<td>ABS</td>`;
+            return `<td class="${Number(note.valeur) < 10 ? "note-rouge" : ""}">${Number(note.valeur).toFixed(2)}</td>`;
           }).join("");
-          return `<tr><td class="print-eleve-col">${eleveNomComplet(insc)}</td>${cells}<td><strong>${formatMoyenne(calculerMoyenneEleve(insc.id))}</strong></td></tr>`;
+          const moy = calculerMoyenneEleve(insc.id);
+          const moyClass = (moy !== null && moy !== undefined && Number(moy) < 10) ? "note-rouge" : "";
+          return `<tr><td class="print-eleve-col">${eleveNomComplet(insc)}</td>${cells}<td class="${moyClass}"><strong>${formatMoyenne(moy)}</strong></td></tr>`;
         }).join("");
         return `<table class="print-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
       }
@@ -1839,7 +1898,8 @@
         const rows = moyennes.map((m, idx) => {
           const v = m.moyenne;
           const appr = v === null ? "—" : v >= 10 ? "Admis" : v >= 8 ? "À surveiller" : "Insuffisant";
-          return `<tr><td>${idx + 1}</td><td class="print-eleve-col">${eleveNomComplet(m.insc)}</td><td>${formatMoyenne(v)}</td><td>${appr}</td></tr>`;
+          const vClass = (v !== null && Number(v) < 10) ? "note-rouge" : "";
+          return `<tr><td>${idx + 1}</td><td class="print-eleve-col">${eleveNomComplet(m.insc)}</td><td class="${vClass}">${formatMoyenne(v)}</td><td>${appr}</td></tr>`;
         }).join("");
         return `<table class="print-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
       }
@@ -1858,6 +1918,10 @@
 
       document.getElementById("btnImprimer").addEventListener("click", () => {
         const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
+        if (activeTab === "tab-statistiques") {
+          showToast("L'impression n'est pas disponible pour l'onglet Statistiques.", "error");
+          return;
+        }
         const champs = [
           { label: "Classe", valeur: classeActiveLibelle() },
           { label: "Séquence", valeur: sequenceActiveLibelle() }
@@ -1984,19 +2048,22 @@
         return totalCoef > 0 ? (totalPondere / totalCoef) : null;
       }
 
-      function moyenneMatiereAnnuelleEleve(inscriptionId, matiereId) {
+      /* sequences (optionnel) : sous-ensemble de state.sequencesAnnuelles sur lequel calculer
+         la moyenne (une seule séquence, les séquences d'un trimestre, ou toutes -> annuel). */
+      function moyenneMatiereAnnuelleEleve(inscriptionId, matiereId, sequences) {
+        const liste = sequences || state.sequencesAnnuelles;
         const vals = [];
-        state.sequencesAnnuelles.forEach(seq => {
+        liste.forEach(seq => {
           const note = state.notesAnnuelIndex[`${seq.id}|${inscriptionId}|${matiereId}`];
           if (note && !note.absent && note.valeur !== null && note.valeur !== undefined) vals.push(Number(note.valeur));
         });
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       }
 
-      function moyenneGeneraleAnnuelleEleve(inscriptionId) {
+      function moyenneGeneraleAnnuelleEleve(inscriptionId, sequences) {
         let totalPondere = 0, totalCoef = 0;
         state.matieresClasse.forEach(mc => {
-          const v = moyenneMatiereAnnuelleEleve(inscriptionId, mc.id);
+          const v = moyenneMatiereAnnuelleEleve(inscriptionId, mc.id, sequences);
           if (v !== null) {
             const coef = getCoefficient(mc);
             totalPondere += v * coef;
@@ -2015,14 +2082,31 @@
         if (!moi) return null;
         return 1 + classement.filter(x => x.val > moi.val).length;
       }
-      function rangMatiereEleve(matiereId, inscriptionId) {
-        return rangDansListe(inscriptionId, id => moyenneMatiereAnnuelleEleve(id, matiereId));
+      function rangMatiereEleve(matiereId, inscriptionId, sequences) {
+        return rangDansListe(inscriptionId, id => moyenneMatiereAnnuelleEleve(id, matiereId, sequences));
       }
-      function rangGeneralEleve(inscriptionId) {
-        return rangDansListe(inscriptionId, id => moyenneGeneraleAnnuelleEleve(id));
+      function rangGeneralEleve(inscriptionId, sequences) {
+        return rangDansListe(inscriptionId, id => moyenneGeneraleAnnuelleEleve(id, sequences));
       }
       function rangSequenceEleve(sequenceId, inscriptionId) {
         return rangDansListe(inscriptionId, id => moyenneEleveSequenceAnnuelle(id, sequenceId));
+      }
+
+      /* ─── Portée d'un bulletin : séquentielle / trimestrielle / annuelle ─── */
+      function sequencesPourPortee(portee) {
+        if (!portee || portee.type === "annuelle") return state.sequencesAnnuelles;
+        if (portee.type === "sequentielle") {
+          return state.sequencesAnnuelles.filter(s => s.id == portee.sequenceId);
+        }
+        if (portee.type === "trimestrielle") {
+          return state.sequencesAnnuelles.filter(s => s.trimestre_id == portee.trimestreId);
+        }
+        return state.sequencesAnnuelles;
+      }
+
+      /* Rouge si note/moyenne < 10, sinon noir (par défaut) */
+      function noteRougeClass(v) {
+        return (v !== null && v !== undefined && Number(v) < 10) ? "note-rouge" : "";
       }
 
       function statsClasseSequence(sequenceId) {
@@ -2038,49 +2122,74 @@
 
       function fmtNote(v) { return (v === null || v === undefined) ? "—" : Number(v).toFixed(2); }
 
-      /* ─────────── Construction du HTML d'un bulletin ─────────── */
-      function buildBulletinEleveHTML(insc) {
+      /* Libellés selon le type de bulletin (portee.type) */
+      const PORTEE_LIBELLES = {
+        sequentielle: { titre: "Bulletin de notes séquentiel", moyCol: "Note/20", produitCol: "Note × Coef", recapCol: "Séquence" },
+        trimestrielle: { titre: "Bulletin de notes trimestriel", moyCol: "Moy. Trim.", produitCol: "Moy × Coef", recapCol: "Trimestre" },
+        annuelle: { titre: "Bulletin de notes annuel", moyCol: "Moy. An", produitCol: "Moy × Coef", recapCol: "Annuel" }
+      };
+
+      function sousTitrePortee(portee) {
+        if (portee.type === "sequentielle") {
+          const seq = state.sequencesAnnuelles.find(s => s.id == portee.sequenceId);
+          return seq ? `${seq.libelle}${seq.trimestre_libelle ? " — " + seq.trimestre_libelle : ""}` : "";
+        }
+        if (portee.type === "trimestrielle") {
+          const t = state.trimestres.find(t => t.id == portee.trimestreId);
+          return t ? t.libelle : "";
+        }
+        return "";
+      }
+
+      /* ─────────── Construction du HTML d'un bulletin ───────────
+         portee : { type: 'sequentielle'|'trimestrielle'|'annuelle', sequenceId?, trimestreId? } */
+      function buildBulletinEleveHTML(insc, portee) {
+        portee = portee || { type: "annuelle" };
+        const libelles = PORTEE_LIBELLES[portee.type] || PORTEE_LIBELLES.annuelle;
         const e = getEleve(insc);
         const matieres = state.matieresClasse;
-        const sequences = state.sequencesAnnuelles;
-        const nbColsFixes = 5; // Moy. An | Coef. | Moy x Coef | Rang | Appréciation
-        const colCount = 1 + sequences.length + nbColsFixes;
+        const sequences = sequencesPourPortee(portee);
+        // Colonnes détaillées par séquence : uniquement utiles s'il y en a plus d'une dans la portée
+        const seqCols = sequences.length > 1 ? sequences : [];
+        const nbColsFixes = 5; // Moy./Note | Coef. | Moy x Coef | Rang | Appréciation
+        const colCount = 1 + seqCols.length + nbColsFixes;
 
         function ligneMatiere(mc) {
-          const seqCells = sequences.map(seq => {
+          const seqCells = seqCols.map(seq => {
             const note = state.notesAnnuelIndex[`${seq.id}|${insc.id}|${mc.id}`];
             if (!note) return `<td class="cell-vide">—</td>`;
-            return `<td>${note.absent ? "Abs" : Number(note.valeur).toFixed(2)}</td>`;
+            if (note.absent) return `<td>Abs</td>`;
+            return `<td class="${noteRougeClass(note.valeur)}">${Number(note.valeur).toFixed(2)}</td>`;
           }).join("");
-          const moyAn = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
+          const moyPeriode = moyenneMatiereAnnuelleEleve(insc.id, mc.id, sequences);
           const coef = getCoefficient(mc);
-          const moyCoef = moyAn !== null ? moyAn * coef : null;
-          const rang = moyAn !== null ? rangMatiereEleve(mc.id, insc.id) : null;
+          const moyCoef = moyPeriode !== null ? moyPeriode * coef : null;
+          const rang = moyPeriode !== null ? rangMatiereEleve(mc.id, insc.id, sequences) : null;
           return `<tr>
             <td class="matiere-col">${getMatiereNom(mc)}</td>
             ${seqCells}
-            <td>${fmtNote(moyAn)}</td>
+            <td class="${noteRougeClass(moyPeriode)}">${fmtNote(moyPeriode)}</td>
             <td>${coef}</td>
             <td>${moyCoef !== null ? moyCoef.toFixed(2) : "—"}</td>
             <td>${rang !== null ? rang + "ème" : "Non classé(e)"}</td>
-            <td>${appreciationMatiere(moyAn)}</td>
+            <td>${appreciationMatiere(moyPeriode)}</td>
           </tr>`;
         }
 
         function blocGroupe(sousTotalLabel, liste) {
           let totalCoef = 0, totalPondere = 0;
           liste.forEach(mc => {
-            const moyAn = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
-            if (moyAn !== null) { totalCoef += getCoefficient(mc); totalPondere += moyAn * getCoefficient(mc); }
+            const moyPeriode = moyenneMatiereAnnuelleEleve(insc.id, mc.id, sequences);
+            if (moyPeriode !== null) { totalCoef += getCoefficient(mc); totalPondere += moyPeriode * getCoefficient(mc); }
           });
           const lignes = liste.map(ligneMatiere).join("");
           const moyGroupe = totalCoef > 0 ? totalPondere / totalCoef : null;
           return `${sousTotalLabel ? `<tr class="groupe-row"><td colspan="${colCount}">${sousTotalLabel}</td></tr>` : ""}
             ${lignes}
             <tr class="groupe-total">
-              <td class="matiere-col">Sous-total</td><td colspan="${sequences.length}"></td>
+              <td class="matiere-col">Sous-total</td><td colspan="${seqCols.length}"></td>
               <td></td><td>${totalCoef}</td><td>${totalPondere.toFixed(2)}</td>
-              <td colspan="2">Moy/20 : ${fmtNote(moyGroupe)}</td>
+              <td colspan="2">Moy/20 : <span class="${noteRougeClass(moyGroupe)}">${fmtNote(moyGroupe)}</span></td>
             </tr>`;
         }
 
@@ -2100,39 +2209,42 @@
           corpsTable = matieres.map(ligneMatiere).join("");
         }
 
-        const moyenneGenerale = moyenneGeneraleAnnuelleEleve(insc.id);
-        const rangGeneral = moyenneGenerale !== null ? rangGeneralEleve(insc.id) : null;
+        const moyenneGenerale = moyenneGeneraleAnnuelleEleve(insc.id, sequences);
+        const rangGeneral = moyenneGenerale !== null ? rangGeneralEleve(insc.id, sequences) : null;
         let totalCoefGen = 0, totalPondereGen = 0;
         matieres.forEach(mc => {
-          const v = moyenneMatiereAnnuelleEleve(insc.id, mc.id);
+          const v = moyenneMatiereAnnuelleEleve(insc.id, mc.id, sequences);
           if (v !== null) { totalCoefGen += getCoefficient(mc); totalPondereGen += v * getCoefficient(mc); }
         });
 
         const entete = `<th class="matiere-col">Matières</th>` +
-          sequences.map(seq => `<th>${seq.libelle}</th>`).join("") +
-          `<th>Moy. An</th><th>Coef.</th><th>Moy x Coef</th><th>Rang</th><th>Appréciation</th>`;
+          seqCols.map(seq => `<th>${seq.libelle}</th>`).join("") +
+          `<th>${libelles.moyCol}</th><th>Coef.</th><th>${libelles.produitCol}</th><th>Rang</th><th>Appréciation</th>`;
 
         const ligneTotal = `<tr class="total-general">
-          <td class="matiere-col">TOTAL GÉNÉRAL</td><td colspan="${sequences.length}"></td>
-          <td>${fmtNote(moyenneGenerale)}</td><td>${totalCoefGen}</td><td>${totalPondereGen.toFixed(2)}</td>
+          <td class="matiere-col">TOTAL GÉNÉRAL</td><td colspan="${seqCols.length}"></td>
+          <td class="${noteRougeClass(moyenneGenerale)}">${fmtNote(moyenneGenerale)}</td><td>${totalCoefGen}</td><td>${totalPondereGen.toFixed(2)}</td>
           <td>${rangGeneral !== null ? `${rangGeneral}ème / ${state.roster.length}` : "—"}</td><td></td>
         </tr>`;
 
-        // Récapitulatif travail
-        const ligneMoyEleve = sequences.map(seq => `<td>${fmtNote(moyenneEleveSequenceAnnuelle(insc.id, seq.id))}</td>`).join("")
-          + `<td><strong>${fmtNote(moyenneGenerale)}</strong></td>`;
-        const ligneRangEleve = sequences.map(seq => {
+        // Récapitulatif travail — colonnes détaillées seulement si plusieurs séquences dans la portée
+        const recapCols = sequences.length > 1 ? sequences : [];
+        const ligneMoyEleve = recapCols.map(seq => {
+          const v = moyenneEleveSequenceAnnuelle(insc.id, seq.id);
+          return `<td class="${noteRougeClass(v)}">${fmtNote(v)}</td>`;
+        }).join("") + `<td><strong class="${noteRougeClass(moyenneGenerale)}">${fmtNote(moyenneGenerale)}</strong></td>`;
+        const ligneRangEleve = recapCols.map(seq => {
           const r = rangSequenceEleve(seq.id, insc.id);
           return `<td>${r !== null ? `${r}ème` : "—"}</td>`;
         }).join("") + `<td><strong>${rangGeneral !== null ? `${rangGeneral}ème / ${state.roster.length}` : "—"}</strong></td>`;
-        const ligneMoyClasse = sequences.map(seq => `<td>${fmtNote(statsClasseSequence(seq.id).moyenne)}</td>`).join("")
+        const ligneMoyClasse = recapCols.map(seq => `<td>${fmtNote(statsClasseSequence(seq.id).moyenne)}</td>`).join("")
           + `<td>—</td>`;
 
         const recapTravail = `
           <div class="bulletin-recap-bloc">
             <div class="titre-bloc">Récapitulatif du travail</div>
             <table>
-              <thead><tr><th class="matiere-col">Indicateur</th>${sequences.map(s => `<th>${s.libelle}</th>`).join("")}<th>Annuel</th></tr></thead>
+              <thead><tr><th class="matiere-col">Indicateur</th>${recapCols.map(s => `<th>${s.libelle}</th>`).join("")}<th>${libelles.recapCol}</th></tr></thead>
               <tbody>
                 <tr><td class="matiere-col">Moyenne de l'élève</td>${ligneMoyEleve}</tr>
                 <tr><td class="matiere-col">Rang</td>${ligneRangEleve}</tr>
@@ -2141,9 +2253,9 @@
             </table>
           </div>`;
 
-        // Récapitulatif discipline
+        // Récapitulatif discipline (toujours sur les séquences de la portée choisie)
         function ligneDiscipline(champ) {
-          return sequences.map(seq => {
+          return recapCols.map(seq => {
             const d = state.disciplineAnnuelIndex[`${seq.id}|${insc.id}`];
             return `<td>${d ? (d[champ] || 0) : 0}</td>`;
           }).join("");
@@ -2158,7 +2270,7 @@
           <div class="bulletin-recap-bloc">
             <div class="titre-bloc">Récapitulatif discipline</div>
             <table>
-              <thead><tr><th class="matiere-col">Indicateur</th>${sequences.map(s => `<th>${s.libelle}</th>`).join("")}<th>Annuel</th></tr></thead>
+              <thead><tr><th class="matiere-col">Indicateur</th>${recapCols.map(s => `<th>${s.libelle}</th>`).join("")}<th>${libelles.recapCol}</th></tr></thead>
               <tbody>
                 <tr><td class="matiere-col">Abs. justifiées</td>${ligneDiscipline("absences_justifiees")}<td><strong>${totalDiscipline("absences_justifiees")}</strong></td></tr>
                 <tr><td class="matiere-col">Abs. injustifiées</td>${ligneDiscipline("absences_non_justifiees")}<td><strong>${totalDiscipline("absences_non_justifiees")}</strong></td></tr>
@@ -2174,6 +2286,14 @@
 
         const aujourdhui = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
+        // Décision du conseil de classe : pertinente pour les bulletins trimestriels/annuels,
+        // simple appréciation pour un bulletin séquentiel.
+        const ligneDecision = portee.type === "sequentielle"
+          ? `Appréciation générale : <strong>${mentionAnnuelle(moyenneGenerale)}</strong>`
+          : `Mention : <strong>${mentionAnnuelle(moyenneGenerale)}</strong> — Décision du conseil de classe : <strong>${decisionAnnuelle(moyenneGenerale)}</strong>`;
+
+        const sousTitre = sousTitrePortee(portee);
+
         return `<div class="bulletin-sheet">
           <div class="bulletin-entete">
             <div class="col-etab">
@@ -2182,7 +2302,8 @@
               <div class="etab-nom">${ETABLISSEMENT.nom}</div>
             </div>
             <div class="bulletin-titre-principale">
-              <div class="titre">Bulletin de notes annuel</div>
+              <div class="titre">${libelles.titre}</div>
+              ${sousTitre ? `<div class="bulletin-sous-titre">${sousTitre}</div>` : ""}
             </div>
             <div class="col-droite">
               <div>Année scolaire : <strong>${anneeActiveLibelle()}</strong></div>
@@ -2203,7 +2324,7 @@
             <thead><tr>${entete}</tr></thead>
             <tbody>${corpsTable}${ligneTotal}</tbody>
           </table>
-          <div class="bulletin-legende">(NA) Non Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(ECA) En Cours d'Acquisition&nbsp;&nbsp;·&nbsp;&nbsp;(A) Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(A+) Expert</div>
+          <div class="bulletin-legende">(NA) Non Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(ECA) En Cours d'Acquisition&nbsp;&nbsp;·&nbsp;&nbsp;(A) Acquise&nbsp;&nbsp;·&nbsp;&nbsp;(A+) Expert&nbsp;&nbsp;·&nbsp;&nbsp;<span class="note-rouge">rouge</span> = note &lt; 10/20</div>
 
           <div class="bulletin-recaps">
             ${recapTravail}
@@ -2211,7 +2332,7 @@
           </div>
 
           <div class="bulletin-observations">
-            <div class="lbl">Mention : ${mentionAnnuelle(moyenneGenerale)} — Décision du conseil de classe : ${decisionAnnuelle(moyenneGenerale)}</div>
+            <div class="lbl">${ligneDecision}</div>
             ${observations ? `<div>${observations}</div>` : ""}
           </div>
 
@@ -2226,25 +2347,68 @@
         </div>`;
       }
 
+      /* ─────────── Détermination de la portée choisie dans le modal ─────────── */
+      function buildPorteeDepuisModal() {
+        const type = document.getElementById("bulletinTypeSelect").value;
+        if (type === "sequentielle") {
+          if (!state.sequenceActiveId) {
+            showToast("Sélectionnez une séquence dans les filtres avant de générer un bulletin séquentiel.", "error");
+            return null;
+          }
+          return { type, sequenceId: state.sequenceActiveId };
+        }
+        if (type === "trimestrielle") {
+          const trimestreId = document.getElementById("bulletinTrimestreSelect").value;
+          if (!trimestreId) {
+            showToast("Sélectionnez un trimestre.", "error");
+            return null;
+          }
+          return { type, trimestreId: Number(trimestreId) };
+        }
+        return { type: "annuelle" };
+      }
+
+      function peupleBulletinTrimestreSelect() {
+        const select = document.getElementById("bulletinTrimestreSelect");
+        select.innerHTML = state.trimestres.map(t => `<option value="${t.id}">${t.libelle}</option>`).join("")
+          || `<option value="">Aucun trimestre</option>`;
+        if (state.trimestreActiveId) select.value = state.trimestreActiveId;
+      }
+
+      function majInfoBulletinModal() {
+        const type = document.getElementById("bulletinTypeSelect").value;
+        document.getElementById("bulletinTrimestreGroup").style.display = type === "trimestrielle" ? "block" : "none";
+        const info = document.getElementById("bulletinPorteeInfo");
+        if (type === "sequentielle") {
+          info.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i>Séquence active : <strong>${sequenceActiveLibelle()}</strong>`;
+        } else if (type === "trimestrielle") {
+          info.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i>Les moyennes seront calculées sur les séquences du trimestre choisi.`;
+        } else {
+          info.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i>Le bulletin reprend toutes les séquences de l'année scolaire active.`;
+        }
+      }
+
+      document.getElementById("bulletinTypeSelect").addEventListener("change", majInfoBulletinModal);
+
       /* ─────────── Génération : élève / classe ─────────── */
-      async function genererBulletinEleve(inscriptionId) {
+      async function genererBulletinEleve(inscriptionId, portee) {
         try {
           await chargerDonneesAnnuelles();
           const insc = state.roster.find(i => i.id == inscriptionId);
           if (!insc) throw new Error("Élève introuvable dans la classe active.");
-          const html = buildBulletinEleveHTML(insc);
+          const html = buildBulletinEleveHTML(insc, portee);
           lancerImpression(html);
         } catch (e) {
           showToast(`Bulletin : ${e.message}`, "error");
         }
       }
 
-      async function genererBulletinsClasse() {
+      async function genererBulletinsClasse(portee) {
         try {
           showToast("Génération des bulletins en cours…");
           await chargerDonneesAnnuelles();
           const roster = rosterTriee();
-          const html = roster.map(insc => buildBulletinEleveHTML(insc)).join("");
+          const html = roster.map(insc => buildBulletinEleveHTML(insc, portee)).join("");
           lancerImpression(html);
         } catch (e) {
           showToast(`Bulletins de classe : ${e.message}`, "error");
@@ -2252,32 +2416,54 @@
       }
 
       const modalBulletinEleve = new bootstrap.Modal(document.getElementById("modalBulletinEleve"));
+      let bulletinModalMode = "eleve";
 
       document.getElementById("btnBulletinEleve").addEventListener("click", () => {
         if (!state.classeActiveId || !state.anneeActiveId) {
           showToast("Sélectionnez une année scolaire et une classe.", "error");
           return;
         }
+        bulletinModalMode = "eleve";
+        document.getElementById("modalBulletinTitle").innerHTML = `<i class="fa-solid fa-file-lines me-2 text-primary"></i>Générer un bulletin`;
+        document.getElementById("bulletinEleveGroup").style.display = "block";
+        document.getElementById("btnConfirmerBulletinEleve").innerHTML = `<i class="fa-solid fa-print me-1"></i>Générer le bulletin`;
         const select = document.getElementById("bulletinEleveSelect");
         select.innerHTML = `<option value="">-- Choisir un élève --</option>` +
           rosterTriee().map(insc => `<option value="${insc.id}">${eleveNomComplet(insc)}</option>`).join("");
+        peupleBulletinTrimestreSelect();
+        majInfoBulletinModal();
         modalBulletinEleve.show();
       });
 
       document.getElementById("btnConfirmerBulletinEleve").addEventListener("click", async () => {
+        const portee = buildPorteeDepuisModal();
+        if (!portee) return;
+
+        if (bulletinModalMode === "classe") {
+          modalBulletinEleve.hide();
+          if (!confirm(`Générer les bulletins de tous les élèves de la classe « ${classeActiveLibelle()} » ?`)) return;
+          await genererBulletinsClasse(portee);
+          return;
+        }
+
         const inscriptionId = document.getElementById("bulletinEleveSelect").value;
         if (!inscriptionId) { showToast("Choisissez un élève.", "error"); return; }
         modalBulletinEleve.hide();
-        await genererBulletinEleve(inscriptionId);
+        await genererBulletinEleve(inscriptionId, portee);
       });
 
-      document.getElementById("btnBulletinClasse").addEventListener("click", async () => {
+      document.getElementById("btnBulletinClasse").addEventListener("click", () => {
         if (!state.classeActiveId || !state.anneeActiveId) {
           showToast("Sélectionnez une année scolaire et une classe.", "error");
           return;
         }
-        if (!confirm(`Générer les bulletins de tous les élèves de la classe « ${classeActiveLibelle()} » ?`)) return;
-        await genererBulletinsClasse();
+        bulletinModalMode = "classe";
+        document.getElementById("modalBulletinTitle").innerHTML = `<i class="fa-solid fa-people-group me-2 text-primary"></i>Générer les bulletins de la classe`;
+        document.getElementById("bulletinEleveGroup").style.display = "none";
+        document.getElementById("btnConfirmerBulletinEleve").innerHTML = `<i class="fa-solid fa-print me-1"></i>Générer les bulletins`;
+        peupleBulletinTrimestreSelect();
+        majInfoBulletinModal();
+        modalBulletinEleve.show();
       });
 
       /* ═══════════════════════════════════════
@@ -2341,6 +2527,10 @@
 
       document.getElementById("btnExportExcel").addEventListener("click", () => {
         const activeTab = document.querySelector("#evalTabs .nav-link.active").id;
+        if (activeTab === "tab-statistiques") {
+          showToast("L'export Excel n'est pas disponible pour l'onglet Statistiques.", "error");
+          return;
+        }
         if (activeTab === "tab-notes") exportNotesToCSV();
         else if (activeTab === "tab-discipline") exportDisciplineToCSV();
         else exportMoyennesToCSV();

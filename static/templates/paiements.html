@@ -37,6 +37,14 @@
     .tranche-card .tranche-date { font-size: 10.5px; color: var(--ta-text-light); }
     .tranche-card .tranche-montants { display: flex; justify-content: space-between; font-size: 11px; color: var(--ta-text-muted); margin-top: 8px; }
     .tranche-card .tranche-actions { display: flex; gap: 4px; }
+    .tranche-card .tranche-classe { font-size: 10.5px; }
+
+    .paiement-tranche-ligne { display: flex; align-items: center; gap: 8px; }
+    .paiement-tranche-ligne .form-select { flex: 1 1 auto; }
+    .paiement-tranche-ligne .montant-affecte { width: 130px; flex: 0 0 130px; }
+    .paiement-tranche-ligne .btn-remove-ligne { flex: 0 0 auto; }
+
+    .badge-classe { background: var(--ta-primary-light); color: var(--ta-primary); }
 
     .grid-loading, .grid-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 40px; color: var(--ta-text-light); font-size: 13px; }
 
@@ -102,6 +110,12 @@
                 <label for="filterAnnee">Année scolaire</label>
                 <select class="form-select form-select-sm" id="filterAnnee" style="min-width:180px;">
                   <option value="">Chargement…</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="filterClasse">Classe</label>
+                <select class="form-select form-select-sm" id="filterClasse" style="min-width:180px;">
+                  <option value="">Toutes les classes</option>
                 </select>
               </div>
               <div class="filter-group flex-grow-1"></div>
@@ -216,7 +230,7 @@
             <div class="card">
               <div class="card-header">
                 <h2 class="card-title">
-                  <i class="fa-solid fa-layer-group me-2 text-primary"></i>Tranches de l'année
+                  <i class="fa-solid fa-layer-group me-2 text-primary"></i>Tranches
                   <span class="badge badge-primary ms-2" id="tranchesCount">0</span>
                 </h2>
                 <button class="btn btn-primary btn-sm" id="btnNouvelleTranche" data-bs-toggle="modal" data-bs-target="#modalTranche">
@@ -242,9 +256,17 @@
                   <i class="fa-solid fa-receipt me-2 text-primary"></i>Historique des paiements
                   <span class="badge badge-primary ms-2" id="paiementsCount">0</span>
                 </h2>
-                <div class="filter-group" style="min-width:200px;">
-                  <select class="form-select form-select-sm" id="filterTranchePaiements">
+                <div class="d-flex flex-wrap gap-2">
+                  <select class="form-select form-select-sm" id="filterClassePaiements" style="min-width:170px;">
+                    <option value="">Toutes les classes</option>
+                  </select>
+                  <select class="form-select form-select-sm" id="filterTranchePaiements" style="min-width:170px;">
                     <option value="">Toutes les tranches</option>
+                  </select>
+                  <select class="form-select form-select-sm" id="sortPaiements" style="min-width:170px;">
+                    <option value="date_desc">Trier par date (récent)</option>
+                    <option value="date_asc">Trier par date (ancien)</option>
+                    <option value="classe">Trier par classe</option>
                   </select>
                 </div>
               </div>
@@ -254,7 +276,8 @@
                     <thead>
                       <tr>
                         <th>Élève</th>
-                        <th>Tranche</th>
+                        <th>Classe</th>
+                        <th>Tranches</th>
                         <th>Montant versé</th>
                         <th>Date</th>
                         <th>Mode</th>
@@ -262,7 +285,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
+                      <tr><td colspan="7" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>
                     </tbody>
                   </table>
                 </div>
@@ -362,10 +385,16 @@
           <form id="formTranche">
             <input type="hidden" id="trancheId">
             <div class="row g-3">
-              <div class="col-12">
+              <div class="col-md-6">
                 <label class="form-label">Année scolaire</label>
                 <select class="form-select" id="trancheAnnee" disabled>
                   <option value="">—</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Classe *</label>
+                <select class="form-select" id="trancheClasse" required>
+                  <option value="">-- Choisir une classe --</option>
                 </select>
               </div>
               <div class="col-12">
@@ -413,14 +442,19 @@
                 </select>
               </div>
               <div class="col-12">
-                <label class="form-label">Tranche de paiement *</label>
-                <select class="form-select" id="paiementTranche" required>
-                  <option value="">-- Choisir une tranche --</option>
-                </select>
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Tranches couvertes par ce paiement *</span>
+                  <button type="button" class="btn btn-light btn-sm" id="btnAjouterTrancheLigne">
+                    <i class="fa-solid fa-plus"></i> Ajouter une tranche
+                  </button>
+                </label>
+                <div id="paiementTranchesList" class="d-flex flex-column gap-2"></div>
+                <small class="text-muted d-block mt-1">Un paiement peut couvrir une ou plusieurs tranches. Choisissez d'abord l'élève pour voir les tranches de sa classe.</small>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Montant versé (FCFA) *</label>
-                <input type="number" class="form-control" id="paiementMontant" min="1" step="1" placeholder="Ex : 25000" required>
+                <label class="form-label">Montant versé (FCFA)</label>
+                <input type="number" class="form-control" id="paiementMontant" min="1" step="1" readonly>
+                <small class="text-muted">Calculé automatiquement (somme des montants affectés aux tranches).</small>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Date du paiement *</label>
@@ -512,24 +546,31 @@
         tranches: `${API_BASE}/tranches`,
         trancheById: (id) => `${API_BASE}/tranches/${id}`,
         tranchesByAnnee: (anneeId) => `${API_BASE}/annees/${anneeId}/tranches`,
+        tranchesByClasse: (classeId) => `${API_BASE}/classes/${classeId}/tranches`,
+        tranchesByAnneeClasse: (anneeId, classeId) => `${API_BASE}/annees/${anneeId}/classes/${classeId}/tranches`,
         totalVerseTranche: (id) => `${API_BASE}/tranches/${id}/total-verse`,
         paiements: `${API_BASE}`,
         paiementById: (id) => `${API_BASE}/${id}`,
         paiementsByTranche: (trancheId) => `${API_BASE}/tranches/${trancheId}/paiements`,
-        situation: (inscriptionId, anneeId) => `${API_BASE}/inscriptions/${inscriptionId}/situation/${anneeId}`,
+        situation: (inscriptionId, anneeId, classeId) => `${API_BASE}/inscriptions/${inscriptionId}/situation/${anneeId}/${classeId}`,
 
         // Routes réelles ou à adapter selon vos blueprints existants :
         anneesScolaires: "/api/structure/annees-scolaires",
-        inscriptions: "/api/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: {...} }
+        classes: "/api/structure/classes", // à adapter : doit renvoyer { id, libelle, cycle_libelle, ... }
+        inscriptions: "/api/inscriptions" // à adapter : doit renvoyer { id, eleve: { nom, prenom }, classe: { id, libelle } }
       };
 
       const state = {
         annees: [],
         anneeActiveId: null,
+        classes: [],
+        classeFiltreId: null,        // filtre classe pour l'onglet Tranches
         tranches: [],
         tranchesTotals: {},   // { trancheId: total_verse }
         paiements: [],
-        inscriptions: []
+        inscriptions: [],
+        // Répartition en cours de saisie dans le modal Paiement : [{ tranche_paiement_id, montant_affecte }]
+        paiementLignes: []
       };
 
       let chartRecouvrement = null;
@@ -631,15 +672,39 @@
         }
       }
 
+      async function loadClasses() {
+        const filterClasse = document.getElementById("filterClasse");
+        const trancheClasse = document.getElementById("trancheClasse");
+        const filterClassePaiements = document.getElementById("filterClassePaiements");
+        try {
+          const payload = await apiFetch(ENDPOINTS.classes);
+          state.classes = payload.data || [];
+          const options = state.classes.map(c => `<option value="${c.id}">${escapeHtml(c.libelle)}</option>`).join("");
+          filterClasse.innerHTML = `<option value="">Toutes les classes</option>` + options;
+          trancheClasse.innerHTML = `<option value="">-- Choisir une classe --</option>` + options;
+          filterClassePaiements.innerHTML = `<option value="">Toutes les classes</option>` + options;
+        } catch (e) {
+          filterClasse.innerHTML = `<option value="">Indisponible</option>`;
+          filterClassePaiements.innerHTML = `<option value="">Indisponible</option>`;
+          showToast(`Classes : ${e.message}`, "error");
+        }
+      }
+
+      function classeLibelle(classeId) {
+        const c = state.classes.find(x => x.id == classeId);
+        return c ? c.libelle : "—";
+      }
+
       async function loadInscriptions() {
         const selPaiement = document.getElementById("paiementInscription");
         const selSituation = document.getElementById("situationInscription");
         try {
           const payload = await apiFetch(ENDPOINTS.inscriptions);
           state.inscriptions = payload.data || [];
-          const options = state.inscriptions.map(i =>
-            `<option value="${i.id}">${escapeHtml(eleveNomFromInscription(i))}${i.classe_nom ? ` — ${escapeHtml(i.classe_nom)}` : ""}</option>`
-          ).join("");
+          const options = state.inscriptions.map((i) => {
+            const classeNom = i.classe ? i.classe.libelle : (i.classe_nom || "");
+            return `<option value="${i.id}">${escapeHtml(eleveNomFromInscription(i))}${classeNom ? ` — ${escapeHtml(classeNom)}` : ""}</option>`;
+          }).join("");
           selPaiement.innerHTML = `<option value="">-- Choisir un élève --</option>` + options;
           selSituation.innerHTML = `<option value="">-- Choisir un élève --</option>` + options;
         } catch (e) {
@@ -656,7 +721,10 @@
         if (!state.anneeActiveId) return;
         grid.innerHTML = `<div class="col-12 grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement des tranches…</div>`;
         try {
-          const payload = await apiFetch(ENDPOINTS.tranchesByAnnee(state.anneeActiveId));
+          const url = state.classeFiltreId
+            ? ENDPOINTS.tranchesByAnneeClasse(state.anneeActiveId, state.classeFiltreId)
+            : ENDPOINTS.tranchesByAnnee(state.anneeActiveId);
+          const payload = await apiFetch(url);
           state.tranches = payload.data || [];
           document.getElementById("tranchesCount").textContent = state.tranches.length;
 
@@ -695,6 +763,7 @@
                 <div class="d-flex justify-content-between align-items-start">
                   <div>
                     <div class="tranche-libelle">${escapeHtml(t.libelle)}</div>
+                    <div class="tranche-classe mb-1"><span class="badge badge-classe">${escapeHtml(classeLibelle(t.classe_id))}</span></div>
                     <div class="tranche-date"><i class="fa-regular fa-calendar me-1"></i>${t.date_limite ? "Échéance : " + formatDate(t.date_limite) : "Sans échéance"}</div>
                   </div>
                   <div class="tranche-actions">
@@ -721,9 +790,8 @@
       }
 
       function populateTrancheSelects() {
-        const options = state.tranches.map(t => `<option value="${t.id}">${escapeHtml(t.libelle)}</option>`).join("");
+        const options = state.tranches.map(t => `<option value="${t.id}">${escapeHtml(t.libelle)} (${escapeHtml(classeLibelle(t.classe_id))})</option>`).join("");
         document.getElementById("filterTranchePaiements").innerHTML = `<option value="">Toutes les tranches</option>` + options;
-        document.getElementById("paiementTranche").innerHTML = `<option value="">-- Choisir une tranche --</option>` + options;
       }
 
       function openTrancheModal(id) {
@@ -733,17 +801,21 @@
         document.getElementById("trancheAnnee").innerHTML = state.anneeActiveId
           ? `<option value="${state.anneeActiveId}">${escapeHtml((state.annees.find(a => a.id == state.anneeActiveId) || {}).libelle || "")}</option>`
           : "";
+        const classeOptions = state.classes.map(c => `<option value="${c.id}">${escapeHtml(c.libelle)}</option>`).join("");
+        document.getElementById("trancheClasse").innerHTML = `<option value="">-- Choisir une classe --</option>` + classeOptions;
 
         if (id) {
           const t = state.tranches.find(x => x.id == id);
           if (!t) return;
           document.getElementById("modalTrancheTitle").innerHTML = `<i class="fa-solid fa-layer-group me-2 text-primary"></i>Modifier la tranche`;
           document.getElementById("trancheId").value = t.id;
+          document.getElementById("trancheClasse").value = t.classe_id;
           document.getElementById("trancheLibelle").value = t.libelle;
           document.getElementById("trancheMontant").value = t.montant_attendu;
           document.getElementById("trancheDateLimite").value = t.date_limite || "";
         } else {
           document.getElementById("modalTrancheTitle").innerHTML = `<i class="fa-solid fa-layer-group me-2 text-primary"></i>Nouvelle tranche de paiement`;
+          if (state.classeFiltreId) document.getElementById("trancheClasse").value = state.classeFiltreId;
         }
         new bootstrap.Modal(document.getElementById("modalTranche")).show();
       }
@@ -755,15 +827,17 @@
         errorBox.classList.add("d-none");
 
         const id = document.getElementById("trancheId").value;
+        const classeId = document.getElementById("trancheClasse").value;
         const data = {
           annee_scolaire_id: Number(state.anneeActiveId),
+          classe_id: Number(classeId),
           libelle: document.getElementById("trancheLibelle").value.trim(),
           montant_attendu: document.getElementById("trancheMontant").value,
           date_limite: document.getElementById("trancheDateLimite").value || null
         };
 
-        if (!data.libelle || !data.montant_attendu) {
-          errorBox.textContent = "Veuillez renseigner le libellé et le montant attendu.";
+        if (!classeId || !data.libelle || !data.montant_attendu) {
+          errorBox.textContent = "Veuillez renseigner la classe, le libellé et le montant attendu.";
           errorBox.classList.remove("d-none");
           return;
         }
@@ -826,7 +900,7 @@
       ═══════════════════════════════════════ */
       async function loadPaiements() {
         const tbody = document.querySelector("#tablePaiements tbody");
-        tbody.innerHTML = `<tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
         try {
           const trancheFiltre = document.getElementById("filterTranchePaiements").value;
           const payload = trancheFiltre
@@ -836,19 +910,59 @@
           document.getElementById("paiementsCount").textContent = state.paiements.length;
           renderPaiementsTable();
         } catch (e) {
-          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
         }
+      }
+
+      // Un paiement peut couvrir plusieurs tranches ; on considère sa "classe"
+      // comme celle des tranches qu'il couvre (toutes rattachées à la même classe
+      // en pratique, puisque les tranches d'un élève dépendent de sa classe).
+      function classeIdsDuPaiement(p) {
+        const lignes = p.tranches || [];
+        const ids = lignes
+          .map(l => l.tranche_paiement && l.tranche_paiement.classe_id)
+          .filter(id => id != null);
+        return [...new Set(ids)];
       }
 
       function renderPaiementsTable() {
         const tbody = document.querySelector("#tablePaiements tbody");
-        if (!state.paiements.length) {
-          tbody.innerHTML = `<tr><td colspan="6" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucun paiement enregistré.</td></tr>`;
+        const classeFiltre = document.getElementById("filterClassePaiements").value;
+        const tri = document.getElementById("sortPaiements").value;
+
+        let liste = state.paiements.slice();
+
+        if (classeFiltre) {
+          liste = liste.filter(p => classeIdsDuPaiement(p).some(id => id == classeFiltre));
+        }
+
+        if (tri === "classe") {
+          liste.sort((a, b) => {
+            const ca = classeLibelle(classeIdsDuPaiement(a)[0]);
+            const cb = classeLibelle(classeIdsDuPaiement(b)[0]);
+            return ca.localeCompare(cb, "fr");
+          });
+        } else if (tri === "date_asc") {
+          liste.sort((a, b) => new Date(a.date_paiement || 0) - new Date(b.date_paiement || 0));
+        } else {
+          liste.sort((a, b) => new Date(b.date_paiement || 0) - new Date(a.date_paiement || 0));
+        }
+
+        if (!liste.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="grid-empty"><i class="fa-solid fa-inbox me-2"></i>Aucun paiement trouvé.</td></tr>`;
           return;
         }
-        tbody.innerHTML = state.paiements.map((p) => {
+
+        tbody.innerHTML = liste.map((p) => {
           const nomEleve = p.eleve ? `${p.eleve.nom || ""} ${p.eleve.prenom || ""}`.trim() : `Inscription #${p.inscription_id}`;
-          const libelleTranche = p.tranche_paiement ? p.tranche_paiement.libelle : "—";
+          const classesIds = classeIdsDuPaiement(p);
+          const classesLabel = classesIds.length ? classesIds.map(id => classeLibelle(id)).join(", ") : "—";
+          const lignesTranches = p.tranches || [];
+          const tranchesLabel = lignesTranches.length
+            ? lignesTranches.map(l =>
+                `<span class="badge badge-neutral me-1 mb-1" title="${formatMontant(l.montant_affecte)}">${escapeHtml(l.tranche_paiement ? l.tranche_paiement.libelle : "—")}</span>`
+              ).join("")
+            : "—";
           return `
             <tr>
               <td>
@@ -857,7 +971,8 @@
                   <span>${escapeHtml(nomEleve)}</span>
                 </div>
               </td>
-              <td>${escapeHtml(libelleTranche)}</td>
+              <td><span class="badge badge-classe">${escapeHtml(classesLabel)}</span></td>
+              <td>${tranchesLabel}</td>
               <td><strong>${formatMontant(p.montant_verse)}</strong></td>
               <td>${formatDate(p.date_paiement)}</td>
               <td>${p.mode_paiement ? `<span class="badge badge-neutral">${escapeHtml(p.mode_paiement)}</span>` : '<span class="text-muted">—</span>'}</td>
@@ -871,12 +986,112 @@
       }
 
       document.getElementById("filterTranchePaiements").addEventListener("change", loadPaiements);
+      document.getElementById("filterClassePaiements").addEventListener("change", renderPaiementsTable);
+      document.getElementById("sortPaiements").addEventListener("change", renderPaiementsTable);
+
+      /* ─────────── Répartition d'un paiement sur 1..n tranches ─────────── */
+
+      // Tranches de la classe de l'élève sélectionné, disponibles pour la répartition
+      state.paiementTranchesDisponibles = [];
+
+      async function chargerTranchesPourInscription(inscriptionId) {
+        state.paiementTranchesDisponibles = [];
+        if (!inscriptionId || !state.anneeActiveId) return;
+        const insc = state.inscriptions.find(i => i.id == inscriptionId);
+        const classeId = insc && insc.classe ? insc.classe.id : null;
+        if (!classeId) return;
+        try {
+          const payload = await apiFetch(ENDPOINTS.tranchesByAnneeClasse(state.anneeActiveId, classeId));
+          state.paiementTranchesDisponibles = payload.data || [];
+        } catch (e) {
+          state.paiementTranchesDisponibles = [];
+        }
+      }
+
+      function trancheOptionsHtml(selectedId) {
+        const dejaChoisies = state.paiementLignes
+          .map(l => l.tranche_paiement_id)
+          .filter(id => id && id != selectedId);
+        return state.paiementTranchesDisponibles
+          .filter(t => !dejaChoisies.includes(t.id))
+          .map(t => `<option value="${t.id}" ${t.id == selectedId ? "selected" : ""}>${escapeHtml(t.libelle)} — ${formatMontant(t.montant_attendu)}</option>`)
+          .join("");
+      }
+
+      function renderPaiementTranchesRows() {
+        const container = document.getElementById("paiementTranchesList");
+        if (!state.paiementLignes.length) {
+          container.innerHTML = `<div class="text-muted" style="font-size:12px;">Aucune tranche ajoutée. Cliquez sur « Ajouter une tranche ».</div>`;
+        } else {
+          container.innerHTML = state.paiementLignes.map((ligne, index) => `
+            <div class="paiement-tranche-ligne" data-index="${index}">
+              <select class="form-select form-select-sm js-ligne-tranche">
+                <option value="">-- Choisir une tranche --</option>
+                ${trancheOptionsHtml(ligne.tranche_paiement_id)}
+              </select>
+              <input type="number" class="form-control form-control-sm montant-affecte js-ligne-montant" min="1" step="1"
+                     placeholder="Montant" value="${ligne.montant_affecte || ""}">
+              <button type="button" class="btn btn-icon btn-sm btn-light btn-remove-ligne js-ligne-remove" title="Retirer">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>`).join("");
+        }
+
+        container.querySelectorAll(".js-ligne-tranche").forEach((sel, i) => {
+          sel.addEventListener("change", (e) => {
+            state.paiementLignes[i].tranche_paiement_id = e.target.value ? Number(e.target.value) : null;
+            renderPaiementTranchesRows();
+            recalculerMontantTotal();
+          });
+        });
+        container.querySelectorAll(".js-ligne-montant").forEach((input, i) => {
+          input.addEventListener("input", (e) => {
+            state.paiementLignes[i].montant_affecte = e.target.value;
+            recalculerMontantTotal();
+          });
+        });
+        container.querySelectorAll(".js-ligne-remove").forEach((btn, i) => {
+          btn.addEventListener("click", () => {
+            state.paiementLignes.splice(i, 1);
+            renderPaiementTranchesRows();
+            recalculerMontantTotal();
+          });
+        });
+      }
+
+      function recalculerMontantTotal() {
+        const total = state.paiementLignes.reduce((sum, l) => sum + (Number(l.montant_affecte) || 0), 0);
+        document.getElementById("paiementMontant").value = total > 0 ? total : "";
+      }
+
+      document.getElementById("btnAjouterTrancheLigne").addEventListener("click", () => {
+        if (!state.paiementTranchesDisponibles.length) {
+          showToast("Choisissez d'abord un élève : les tranches dépendent de sa classe.", "error");
+          return;
+        }
+        state.paiementLignes.push({ tranche_paiement_id: null, montant_affecte: "" });
+        renderPaiementTranchesRows();
+      });
+
+      document.getElementById("paiementInscription").addEventListener("change", async (e) => {
+        state.paiementLignes = [];
+        renderPaiementTranchesRows();
+        recalculerMontantTotal();
+        await chargerTranchesPourInscription(e.target.value);
+        if (state.paiementTranchesDisponibles.length) {
+          state.paiementLignes.push({ tranche_paiement_id: null, montant_affecte: "" });
+          renderPaiementTranchesRows();
+        }
+      });
 
       function resetPaiementForm() {
         document.getElementById("formPaiement").reset();
         document.getElementById("paiementFormError").classList.add("d-none");
         document.getElementById("paiementId").value = "";
         document.getElementById("paiementDate").value = new Date().toISOString().slice(0, 10);
+        state.paiementLignes = [];
+        state.paiementTranchesDisponibles = [];
+        renderPaiementTranchesRows();
       }
 
       document.getElementById("modalPaiement").addEventListener("show.bs.modal", resetPaiementForm);
@@ -885,19 +1100,34 @@
         const errorBox = document.getElementById("paiementFormError");
         errorBox.classList.add("d-none");
 
-        const data = {
-          inscription_id: Number(document.getElementById("paiementInscription").value),
-          tranche_paiement_id: Number(document.getElementById("paiementTranche").value),
-          montant_verse: document.getElementById("paiementMontant").value,
-          date_paiement: document.getElementById("paiementDate").value,
-          mode_paiement: document.getElementById("paiementMode").value || null
-        };
+        const inscriptionId = Number(document.getElementById("paiementInscription").value);
+        const dateVal = document.getElementById("paiementDate").value;
+        const modeVal = document.getElementById("paiementMode").value || null;
 
-        if (!data.inscription_id || !data.tranche_paiement_id || !data.montant_verse) {
-          errorBox.textContent = "Veuillez renseigner l'élève, la tranche et le montant versé.";
+        const tranches = state.paiementLignes
+          .filter(l => l.tranche_paiement_id && Number(l.montant_affecte) > 0)
+          .map(l => ({ tranche_paiement_id: l.tranche_paiement_id, montant_affecte: Number(l.montant_affecte) }));
+
+        const montantVerse = tranches.reduce((sum, t) => sum + t.montant_affecte, 0);
+
+        if (!inscriptionId || !dateVal) {
+          errorBox.textContent = "Veuillez renseigner l'élève et la date du paiement.";
           errorBox.classList.remove("d-none");
           return;
         }
+        if (tranches.length < 1) {
+          errorBox.textContent = "Un paiement doit couvrir au moins une tranche (avec un montant affecté positif).";
+          errorBox.classList.remove("d-none");
+          return;
+        }
+
+        const data = {
+          inscription_id: inscriptionId,
+          montant_verse: montantVerse,
+          date_paiement: dateVal,
+          mode_paiement: modeVal,
+          tranches
+        };
 
         try {
           await apiFetch(ENDPOINTS.paiements, { method: "POST", body: JSON.stringify(data) });
@@ -923,9 +1153,17 @@
         }
         if (!state.anneeActiveId) return;
 
+        // Les tranches étant propres à une classe, on récupère la classe de l'élève sélectionné.
+        const insc = state.inscriptions.find(i => i.id == inscriptionId);
+        const classeId = insc && insc.classe ? insc.classe.id : null;
+        if (!classeId) {
+          showToast("Impossible de déterminer la classe de cet élève.", "error");
+          return;
+        }
+
         tbody.innerHTML = `<tr><td colspan="6" class="grid-loading"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</td></tr>`;
         try {
-          const payload = await apiFetch(ENDPOINTS.situation(inscriptionId, state.anneeActiveId));
+          const payload = await apiFetch(ENDPOINTS.situation(inscriptionId, state.anneeActiveId, classeId));
           renderSituation(payload.data);
         } catch (e) {
           tbody.innerHTML = `<tr><td colspan="6" class="grid-empty">Erreur : ${escapeHtml(e.message)}</td></tr>`;
@@ -1133,6 +1371,11 @@
         await loadTranches();
       });
 
+      document.getElementById("filterClasse").addEventListener("change", async (e) => {
+        state.classeFiltreId = e.target.value || null;
+        await loadTranches();
+      });
+
       /* ═══════════════════════════════════════
          ACTUALISATION / EXPORT
       ═══════════════════════════════════════ */
@@ -1147,12 +1390,19 @@
           showToast("Aucun paiement à exporter.", "error");
           return;
         }
-        const rows = [["Élève", "Tranche", "Montant versé", "Date", "Mode de paiement"]];
+        const rows = [["Élève", "Classe", "Tranches", "Montant versé", "Date", "Mode de paiement"]];
         state.paiements.forEach((p) => {
           const nomEleve = p.eleve ? `${p.eleve.nom || ""} ${p.eleve.prenom || ""}`.trim() : `Inscription #${p.inscription_id}`;
+          const classesIds = classeIdsDuPaiement(p);
+          const classesLabel = classesIds.length ? classesIds.map(id => classeLibelle(id)).join(", ") : "";
+          const tranchesLabel = (p.tranches || [])
+            .map(l => l.tranche_paiement ? l.tranche_paiement.libelle : "")
+            .filter(Boolean)
+            .join(", ");
           rows.push([
             nomEleve,
-            p.tranche_paiement ? p.tranche_paiement.libelle : "",
+            classesLabel,
+            tranchesLabel,
             p.montant_verse,
             p.date_paiement || "",
             p.mode_paiement || ""
@@ -1172,7 +1422,7 @@
       ═══════════════════════════════════════ */
       async function init() {
         document.getElementById("modalPaiement").addEventListener("hidden.bs.modal", resetPaiementForm);
-        await Promise.all([loadAnnees(), loadInscriptions()]);
+        await Promise.all([loadAnnees(), loadClasses(), loadInscriptions()]);
         await loadTranches();
       }
 
