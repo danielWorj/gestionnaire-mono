@@ -82,7 +82,7 @@
         {
           key: "finances",
           label: "Finances",
-          icon: "fa-money-bill-wave",
+          icon: "fa-chart-line",
           href: "/finances",
         }
       ],

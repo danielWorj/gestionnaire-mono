@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from models import db
-from finances import (
+from models.finances import (
     CategorieEntree,
     Entree,
     CategorieSortie,

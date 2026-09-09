@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from decimal import Decimal
 
-from finances_service import FinancesService
+from services.finances_service import FinancesService
 
 finances_bp = Blueprint('finances', __name__, url_prefix='/api/finances')
 
