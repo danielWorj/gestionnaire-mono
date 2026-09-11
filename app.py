@@ -10,6 +10,7 @@ from api.parent_api import parent_bp
 from api.evaluation_api import evaluation_bp
 from api.paiements_api import paiements_bp
 from api.finances_api import finances_bp
+from models.license import LicenseState  # noqa: F401 — enregistre le modèle auprès de SQLAlchemy/Alembic
 
 from pathlib import Path
 import os
