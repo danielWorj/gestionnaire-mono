@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activation requise — Gestionnaire Scolaire</title>
+
+<!--
+  Feuille de style locale de l'application (variables TailAdmin, typographie).
+  Aucun lien CDN : cet écran est le tout premier affiché sur une machine sans
+  connexion Internet, il doit donc rester intégralement fonctionnel hors-ligne.
+-->
+<link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+<style>
+  /* ============================================================
+     activation.html — Écran de verrouillage / activation licence
+     Auto-suffisant : aucune police, icône ou framework distant.
+     ============================================================ */
+
+  html, body {
+    min-height: 100vh;
+    background: var(--ta-bg, #F1F5F9);
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .activation-shell {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .activation-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .activation-logo-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--ta-radius, 6px);
+    background: var(--ta-primary, #3C50E0);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .activation-logo-icon svg { width: 20px; height: 20px; }
+
+  .activation-logo-text {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ta-text, #1C2434);
+  }
+
+  .activation-card {
+    background: var(--ta-white, #fff);
+    border: 1px solid var(--ta-border, #E2E8F0);
+    border-radius: var(--ta-radius-lg, 8px);
+    box-shadow: var(--ta-shadow-lg, 0 4px 16px rgba(0,0,0,0.08));
+    padding: 32px 30px;
+  }
+
+  /* --- État : vérification initiale --- */
+  .status-checking {
+    text-align: center;
+    padding: 12px 0 4px;
+  }
+
+  .spinner {
+    width: 30px;
+    height: 30px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    border: 3px solid var(--ta-border-light, #F1F5F9);
+    border-top-color: var(--ta-primary, #3C50E0);
+    animation: activation-spin 0.8s linear infinite;
+  }
+
+  @keyframes activation-spin { to { transform: rotate(360deg); } }
+
+  .status-checking p {
+    font-size: 12px;
+    color: var(--ta-text-muted, #64748B);
+    margin: 0;
+  }
+
+  /* --- État : écran de blocage --- */
+  .lock-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--ta-danger-light, #FEECEE);
+    color: var(--ta-danger, #D34053);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+  }
+
+  .lock-icon svg { width: 22px; height: 22px; }
+
+  .activation-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ta-text, #1C2434);
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  #lock-message {
+    font-size: 12.5px;
+    color: var(--ta-text-muted, #64748B);
+    text-align: center;
+    margin-bottom: 22px;
+    line-height: 1.6;
+  }
+
+  .field-group { margin-bottom: 14px; }
+
+  .field-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ta-text, #1C2434);
+    margin-bottom: 6px;
+  }
+
+  .field-hint {
+    font-size: 10.5px;
+    color: var(--ta-text-light, #94A3B8);
+    margin-top: 5px;
+  }
+
+  #license-key-input {
+    width: 100%;
+    min-height: 96px;
+    resize: vertical;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--ta-text, #1C2434);
+    background: var(--ta-bg, #F1F5F9);
+    border: 1px solid var(--ta-border, #E2E8F0);
+    border-radius: var(--ta-radius, 6px);
+    padding: 10px 12px;
+    box-sizing: border-box;
+  }
+
+  #license-key-input:focus {
+    outline: none;
+    border-color: var(--ta-primary, #3C50E0);
+    background: #fff;
+  }
+
+  .file-drop {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px dashed var(--ta-border, #E2E8F0);
+    border-radius: var(--ta-radius, 6px);
+    padding: 9px 12px;
+    background: var(--ta-bg, #F1F5F9);
+  }
+
+  .file-drop svg {
+    width: 15px; height: 15px;
+    color: var(--ta-text-light, #94A3B8);
+    flex-shrink: 0;
+  }
+
+  #license-key-file {
+    font-size: 11px;
+    color: var(--ta-text-muted, #64748B);
+    width: 100%;
+  }
+
+  .divider-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0;
+    color: var(--ta-text-light, #94A3B8);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .divider-or::before,
+  .divider-or::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--ta-border, #E2E8F0);
+  }
+
+  #activation-error {
+    font-size: 11.5px;
+    color: var(--ta-danger, #D34053);
+    background: var(--ta-danger-light, #FEECEE);
+    border: 1px solid rgba(211, 64, 83, 0.25);
+    border-radius: var(--ta-radius-sm, 4px);
+    padding: 9px 11px;
+    margin: 4px 0 14px;
+    line-height: 1.5;
+  }
+
+  #activation-submit {
+    width: 100%;
+    border: none;
+    border-radius: var(--ta-radius, 6px);
+    background: var(--ta-primary, #3C50E0);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.2s ease, opacity 0.2s ease;
+  }
+
+  #activation-submit:hover:not(:disabled) { background: var(--ta-primary-dark, #2C3FD0); }
+  #activation-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  /* --- Bloc code d'installation / QR --- */
+  #challenge-block {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--ta-border-light, #F1F5F9);
+    text-align: center;
+  }
+
+  #challenge-block .challenge-heading {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ta-text, #1C2434);
+    margin-bottom: 4px;
+  }
+
+  #challenge-block .challenge-desc {
+    font-size: 10.5px;
+    color: var(--ta-text-muted, #64748B);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  .installation-code-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--ta-primary-light, #EEF2FF);
+    border: 1px solid rgba(60, 80, 224, 0.18);
+    border-radius: var(--ta-radius, 6px);
+    padding: 10px 16px;
+    margin-bottom: 14px;
+  }
+
+  #installation-code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ta-primary, #3C50E0);
+  }
+
+  #copy-installation-code {
+    border: none;
+    background: transparent;
+    color: var(--ta-primary, #3C50E0);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 3px;
+    border-radius: var(--ta-radius-sm, 4px);
+  }
+
+  #copy-installation-code:hover { background: rgba(60, 80, 224, 0.12); }
+  #copy-installation-code svg { width: 14px; height: 14px; }
+
+  #qrcode-container {
+    width: 180px;
+    height: 180px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid var(--ta-border, #E2E8F0);
+    border-radius: var(--ta-radius, 6px);
+    padding: 8px;
+  }
+
+  #qrcode-container:empty::before {
+    content: "QR indisponible — utilisez le code ci-dessus";
+    font-size: 9.5px;
+    color: var(--ta-text-light, #94A3B8);
+    text-align: center;
+    padding: 0 10px;
+  }
+
+  #refresh-challenge {
+    border: 1px solid var(--ta-border, #E2E8F0);
+    background: #fff;
+    color: var(--ta-text-muted, #64748B);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--ta-radius, 6px);
+    padding: 7px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+
+  #refresh-challenge:hover {
+    border-color: var(--ta-primary, #3C50E0);
+    color: var(--ta-primary, #3C50E0);
+  }
+
+  #refresh-challenge svg { width: 13px; height: 13px; }
+
+  .activation-footer {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 10.5px;
+    color: var(--ta-text-light, #94A3B8);
+  }
+
+  /* --- État : application déjà déverrouillée (accès direct à /activation) --- */
+  #app-root .app-root-inner {
+    text-align: center;
+    padding: 30px 10px;
+  }
+
+  #app-root .spinner { margin-bottom: 16px; }
+
+  #app-root p {
+    font-size: 12px;
+    color: var(--ta-text-muted, #64748B);
+    margin: 0;
+  }
+
+  @media (max-width: 420px) {
+    .activation-card { padding: 26px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="activation-shell">
+
+  <div class="activation-logo">
+    <div class="activation-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <div class="activation-logo-text">Gestionnaire</div>
+  </div>
+
+  <div class="activation-card">
+
+    <!-- ============================================================
+         État initial : vérification du statut de licence en cours
+         (GET /api/license/status, déclenché par activation.js au
+         chargement). Masqué automatiquement dès qu'un état est connu. -->
+    <div id="status-checking" class="status-checking">
+      <div class="spinner"></div>
+      <p>Vérification de la licence de l'établissement…</p>
+    </div>
+
+    <!-- ============================================================
+         Écran de blocage : affiché par activation.js (showLockScreen)
+         chaque fois que GET /api/license/status ne renvoie pas
+         { success: true, status: 'valid' }. -->
+    <div id="lock-screen" hidden>
+
+      <div class="lock-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      </div>
+
+      <h1 class="activation-title">Activation requise</h1>
+      <p id="lock-message">Vérification de la licence en cours…</p>
+
+      <form id="activation-form" novalidate>
+
+        <div class="field-group">
+          <label class="field-label" for="license-key-input">Clé de licence (Base64)</label>
+          <textarea id="license-key-input" placeholder="Collez ici la clé fournie par l'administrateur…" autocomplete="off" spellcheck="false"></textarea>
+          <p class="field-hint">La clé est un bloc de texte signé, fourni par WhatsApp ou par email lors de l'abonnement.</p>
+        </div>
+
+        <div class="divider-or">ou</div>
+
+        <div class="field-group">
+          <label class="field-label" for="license-key-file">Fichier de licence</label>
+          <div class="file-drop">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <input type="file" id="license-key-file" accept=".lic,.txt,.json">
+          </div>
+        </div>
+
+        <p id="activation-error" class="error" hidden></p>
+
+        <button type="submit" id="activation-submit">Activer</button>
+      </form>
+
+      <!-- ==========================================================
+           Bloc dépannage / renouvellement : affiché uniquement pour
+           les statuts 'no_license' et 'hwid_mismatch' (voir
+           activation.js → showLockScreen → needsChallenge). Alimenté
+           par GET /api/license/challenge. -->
+      <section id="challenge-block" hidden>
+        <p class="challenge-heading">Code d'installation de cet ordinateur</p>
+        <p class="challenge-desc">
+          Transmettez ce code (ou une photo de ce QR code) à l'administrateur
+          par WhatsApp pour obtenir une licence valide pour cette machine.
+        </p>
+
+        <div class="installation-code-box">
+          <span id="installation-code">----</span>
+          <button type="button" id="copy-installation-code" title="Copier le code" aria-label="Copier le code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+
+        <div id="qrcode-container"></div>
+
+        <button type="button" id="refresh-challenge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Actualiser le code
+        </button>
+      </section>
+
+    </div>
+
+    <!-- ============================================================
+         Licence déjà valide sur cette machine : cas de l'accès direct
+         à /activation alors que tout est en ordre. activation.js
+         (showApp) démasque simplement ce bloc ; le script ci-dessous
+         redirige aussitôt vers l'application. -->
+    <div id="app-root" hidden>
+      <div class="app-root-inner">
+        <div class="spinner"></div>
+        <p>Licence valide — redirection vers l'application…</p>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="activation-footer">Application hors-ligne · aucune donnée n'est transmise sur Internet</p>
+
+</div>
+
+<!--
+  Ordre de chargement 100% local (aucun CDN), conforme au contrat documenté
+  en tête de static/js/activation.js.
+
+  static/js/lib/qrcode.min.js n'est pas encore vendoré dans ce dépôt : en son
+  absence, activation.js se rabat silencieusement sur le code d'installation
+  affiché en gros caractères (suffisant pour la photo WhatsApp), sans erreur
+  bloquante pour l'utilisateur.
+-->
+<script src="{{ url_for('static', filename='js/lib/qrcode.min.js') }}" onerror="this.remove()"></script>
+<script src="{{ url_for('static', filename='js/activation.js') }}"></script>
+
+<script>
+  // Petites améliorations d'UX propres à cette page, sans toucher à la
+  // logique métier d'activation.js (contrat DOM inchangé) :
+  //   1. masquer le loader "Vérification…" dès qu'un état final est connu ;
+  //   2. rediriger vers l'accueil si la licence s'avère déjà valide
+  //      (accès direct à /activation sur une machine déjà activée).
+  (function () {
+    'use strict';
+
+    var checking = document.getElementById('status-checking');
+    var lockScreen = document.getElementById('lock-screen');
+    var appRoot = document.getElementById('app-root');
+    var copyBtn = document.getElementById('copy-installation-code');
+    var codeEl = document.getElementById('installation-code');
+
+    function hideChecking() {
+      if (checking) checking.hidden = true;
+    }
+
+    if (lockScreen) {
+      new MutationObserver(hideChecking)
+        .observe(lockScreen, { attributes: true, attributeFilter: ['hidden'] });
+    }
+
+    if (appRoot) {
+      new MutationObserver(function () {
+        hideChecking();
+        if (!appRoot.hidden) {
+          window.location.href = '/';
+        }
+      }).observe(appRoot, { attributes: true, attributeFilter: ['hidden'] });
+    }
+
+    if (copyBtn && codeEl) {
+      copyBtn.addEventListener('click', function () {
+        var text = codeEl.textContent.trim();
+        if (!text || text === '----') return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(function () {});
+        }
+      });
+    }
+  })();
+</script>
+
+</body>
+</html>

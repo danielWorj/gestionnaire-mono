@@ -1,4 +1,4 @@
-from flask import Flask, app, render_template
+from flask import Flask, app, render_template, request, redirect, url_for, jsonify
 from config import config
 from models import db
 from flask_migrate import Migrate
@@ -10,6 +10,8 @@ from api.parent_api import parent_bp
 from api.evaluation_api import evaluation_bp
 from api.paiements_api import paiements_bp
 from api.finances_api import finances_bp
+from api.license_api import license_bp
+from licensing.license_manager import get_status, STATUS_VALID
 from models.license import LicenseState  # noqa: F401 — enregistre le modèle auprès de SQLAlchemy/Alembic
 
 from pathlib import Path
@@ -47,6 +49,57 @@ def create_app(config_name=None):
     app.register_blueprint(evaluation_bp)
     app.register_blueprint(paiements_bp)
     app.register_blueprint(finances_bp)
+    app.register_blueprint(license_bp)
+
+    # ------------------------------------------------------------------
+    # Application de la licence : middleware exécuté avant CHAQUE requête.
+    # ------------------------------------------------------------------
+    # Chemins toujours accessibles, même quand la licence est bloquée :
+    #   - /static/*        : sinon l'écran d'activation lui-même (CSS/JS/QR)
+    #                        ne pourrait pas se charger ;
+    #   - /api/activate,
+    #     /api/license/*   : le frontend doit pouvoir interroger le statut
+    #                        et soumettre une nouvelle clé même bloqué ;
+    #   - /activation      : la page d'activation elle-même (pas de boucle
+    #                        de redirection) ;
+    #   - /health,
+    #     /debug-paths     : diagnostics techniques, sans donnée sensible.
+    _LICENSE_EXEMPT_PREFIXES = (
+        '/static/',
+        '/api/activate',
+        '/api/license/',
+    )
+    _LICENSE_EXEMPT_PATHS = {
+        '/activation',
+        '/health',
+        '/debug-paths',
+    }
+
+    @app.before_request
+    def enforce_license():
+        path = request.path
+
+        if path in _LICENSE_EXEMPT_PATHS or path.startswith(_LICENSE_EXEMPT_PREFIXES):
+            return None
+
+        result = get_status()
+        if result.get('status') == STATUS_VALID:
+            return None
+
+        # Appels API "métier" (structure, finances, évaluations, etc.) :
+        # une requête fetch() ne peut pas être redirigée vers une page HTML,
+        # on renvoie donc une erreur JSON exploitable par le frontend.
+        if path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'status': result.get('status'),
+                'message': result.get('message') or "Accès bloqué : licence invalide ou expirée.",
+            }), 403
+
+        # Toute autre page (index, config, eleve, ...) : redirection vers
+        # l'écran d'activation.
+        return redirect(url_for('activation_page'))
+
     # Route de test
     @app.route('/health')
     def health():
@@ -105,6 +158,10 @@ def create_app(config_name=None):
     @app.route('/index')
     def index_page():
         return render_template('index.html')
+
+    @app.route('/activation')
+    def activation_page():
+        return render_template('activation.html')
 
     return app
 
