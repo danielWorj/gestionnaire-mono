@@ -14,7 +14,7 @@ avec la nouvelle clé privée si vous la changez.
 """
 
 PUBLIC_KEY_PEM = b"""-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0oi75A4lG/+TPaF/rOOYb1Gls6Z1
-wzfdSvh3OFjEUZ2gxpaxhNyC3vERvGwLadlluqvjz8PLz0bHOgo8EDeP1Q==
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwcvGnPpj8YtPL9nY5ay0y8zBHb8J
+wgmGKiS8RRF59iUeuLZLh7GdzAZlu5xS9iVs8//ilsVWjpROVUE5q9zCTw==
 -----END PUBLIC KEY-----
 """
