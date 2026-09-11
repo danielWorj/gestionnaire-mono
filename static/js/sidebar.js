@@ -7,52 +7,45 @@
      "key" correspond à la valeur de data-page="..."
   ════════════════════════════════════════════════ */
   const MENU = [
-    /* ── Pédagogie ── */
+    /* ── Pédagogie : structure et paramétrage de l'établissement ── */
     {
       section: "Pédagogie",
       items: [
         {
           key: "config",
           label: "Configuration",
-          icon: "fa-chalkboard",
+          icon: "fa-sliders",
           href: "/config",
         },
         {
           key: "enseignant",
           label: "Enseignants",
-          icon: "fa-user-tie",
+          icon: "fa-chalkboard-user",
           href: "/enseignant",
         },
         {
           key: "matiere",
           label: "Matières",
-          icon: "fa-book-open",
+          icon: "fa-book",
           href: "/matiere",
         },
-      ],
-    },
-
-    /* ── Emploi de temps ── */
-    {
-      section: "Horaire & Emploi du temps",
-      items: [
         {
           key: "horaire",
-          label: "Horaires",
-          icon: "fa-clock",
+          label: "Emploi du temps",
+          icon: "fa-calendar-days",
           href: "/horaire",
         },
       ],
     },
 
-    /* ── Scolarité ── */
+    /* ── Scolarité : gestion des acteurs (élèves, parents, inscriptions) ── */
     {
       section: "Scolarité",
       items: [
         {
           key: "inscription",
           label: "Inscriptions",
-          icon: "fa-user-plus",
+          icon: "fa-file-signature",
           href: "/inscription",
         },
         {
@@ -67,10 +60,17 @@
           icon: "fa-people-roof",
           href: "/parent",
         },
+      ],
+    },
+
+    /* ── Suivi & Finances : évaluations et flux financiers ── */
+    {
+      section: "Suivi & Finances",
+      items: [
         {
           key: "evaluation",
           label: "Évaluations",
-          icon: "fa-pen-to-square",
+          icon: "fa-clipboard-check",
           href: "/evaluation",
         },
         {
@@ -82,9 +82,9 @@
         {
           key: "finances",
           label: "Finances",
-          icon: "fa-chart-line",
+          icon: "fa-chart-pie",
           href: "/finances",
-        }
+        },
       ],
     },
   ];
@@ -93,20 +93,34 @@
      HELPERS
   ════════════════════════════════════════════════ */
 
-  /** Retourne la page active depuis data-page sur <body> ou <main>. */
+  const ACTIVE_KEY_STORAGE = "gestionnaire_active_page";
+
+  /**
+   * Retourne la page active.
+   * Priorité : data-page sur <body>/<main> (source de vérité côté serveur).
+   * Si absent, on retombe sur la dernière rubrique cliquée (sessionStorage),
+   * ce qui évite que le lien perde son état "actif" sur des pages qui
+   * n'auraient pas encore été mises à jour avec l'attribut data-page.
+   */
   function getActivePage() {
-    return (
+    const fromDom =
       document.body.dataset.page ||
       document.querySelector("main")?.dataset.page ||
-      ""
-    );
+      "";
+    if (fromDom) return fromDom;
+
+    try {
+      return sessionStorage.getItem(ACTIVE_KEY_STORAGE) || "";
+    } catch (e) {
+      return "";
+    }
   }
 
   /** Construit le HTML d'un lien de sous-menu. */
   function buildSubmenuItem(sub, activePage) {
     const isActive = activePage === sub.key ? " active" : "";
     return `<li class="nav-item">
-      <a class="nav-link${isActive}" href="${sub.href}">${sub.label}</a>
+      <a class="nav-link${isActive}" href="${sub.href}" data-key="${sub.key}">${sub.label}</a>
     </li>`;
   }
 
@@ -135,7 +149,7 @@
 
     if (!hasSubmenu) {
       return `<li class="nav-item">
-        <a class="nav-link${activeClass}" href="${item.href}">
+        <a class="nav-link${activeClass}" href="${item.href}" data-key="${item.key}">
           <span class="nav-icon"><i class="fa-solid ${item.icon}"></i></span>
           <span class="nav-label">${item.label}</span>
           ${badgeHtml}
@@ -398,6 +412,43 @@
         if (!isOpen) {
           submenu.classList.add("show");
           btn.setAttribute("aria-expanded", "true");
+        }
+      });
+    });
+
+    /* ── Liens de navigation : rester actif après un clic ──
+       On applique l'état "actif" tout de suite (retour visuel instantané,
+       avant même que la nouvelle page ne soit chargée) et on mémorise la
+       clé cliquée pour que getActivePage() puisse s'y référer si la page
+       de destination n'a pas encore l'attribut data-page. */
+    sidebar.querySelectorAll(".nav-link[data-key]").forEach((link) => {
+      link.addEventListener("click", () => {
+        const key = link.dataset.key;
+        if (!key) return;
+
+        try {
+          sessionStorage.setItem(ACTIVE_KEY_STORAGE, key);
+        } catch (e) {
+          /* stockage indisponible (navigation privée, etc.) : on ignore */
+        }
+
+        /* Retirer l'état actif de tous les liens/boutons */
+        sidebar.querySelectorAll(".nav-link.active").forEach((el) => {
+          el.classList.remove("active");
+        });
+
+        /* Marquer le lien cliqué comme actif */
+        link.classList.add("active");
+
+        /* Si le lien est dans un sous-menu, garder le parent actif/ouvert */
+        const parentSubmenu = link.closest(".nav-submenu");
+        if (parentSubmenu) {
+          const parentBtn = sidebar.querySelector(`[data-submenu="${parentSubmenu.id}"]`);
+          if (parentBtn) {
+            parentBtn.classList.add("active");
+            parentBtn.setAttribute("aria-expanded", "true");
+          }
+          parentSubmenu.classList.add("show");
         }
       });
     });

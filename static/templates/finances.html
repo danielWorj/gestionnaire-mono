@@ -76,28 +76,80 @@
     #journalPrintable { display: none; }
 
     @media print {
-      @page { margin: 14mm 12mm; }
+      /* Format A4 explicite + tentative de numérotation de page.
+         La numérotation via les "margin boxes" CSS (@bottom-right) n'est
+         garantie que sur les moteurs qui la supportent (ex. Firefox) ; les
+         navigateurs qui l'ignorent (ex. Chrome) affichent simplement la page
+         sans numéro, sans casser la mise en page. */
+      @page {
+        size: A4;
+        margin: 16mm 12mm 18mm;
+        @bottom-right { content: "Page " counter(page) " / " counter(pages); font-size: 9px; color: #666; }
+      }
+
+      /* Forcer l'impression des couleurs de fond (en-têtes de tableau, totaux)
+         sur les navigateurs qui les désactivent par défaut à l'impression. */
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
+
       body * { visibility: hidden !important; }
       #journalPrintable, #journalPrintable * { visibility: visible !important; }
       #journalPrintable {
         display: block !important;
         position: absolute; top: 0; left: 0; width: 100%;
-        font-size: 11.5px; color: #111;
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        font-size: 11.5px; line-height: 1.4; color: #111;
+        orphans: 3; widows: 3;
       }
+
       .print-header { text-align: center; margin-bottom: 6px; }
       .print-header h1 { font-size: 17px; margin: 0 0 2px; }
       .print-header .etab { font-size: 11px; color: #444; }
       .print-header .periode { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
       .print-meta { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin: 8px 0 14px; border-bottom: 1px solid #999; padding-bottom: 6px; }
-      .print-cat { margin-bottom: 12px; page-break-inside: avoid; }
-      .print-cat-title { font-weight: 700; font-size: 12.5px; background: #eee; padding: 4px 8px; border: 1px solid #999; }
-      table.print-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-      table.print-table th, table.print-table td { border: 1px solid #bbb; padding: 3px 6px; font-size: 10.5px; text-align: left; }
+
+      /* Bloc catégorie : on essaie de le garder d'un seul tenant, mais s'il est
+         plus long qu'une page, `break-inside` cède naturellement la place à
+         une coupure propre plutôt que de déborder hors page. */
+      .print-cat {
+        margin-bottom: 14px;
+        break-inside: avoid; page-break-inside: avoid;
+      }
+      .print-cat-title {
+        font-weight: 700; font-size: 12.5px; background: #eee; padding: 5px 8px;
+        border: 1px solid #999; border-bottom: none;
+        break-after: avoid; page-break-after: avoid; /* jamais seul en bas de page */
+      }
+
+      table.print-table {
+        width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed;
+      }
+      /* Sur les tableaux qui débordent malgré tout sur une 2e page, on répète
+         l'en-tête des colonnes en haut de chaque nouvelle page. */
+      table.print-table thead { display: table-header-group; }
+      table.print-table tfoot { display: table-footer-group; }
+      table.print-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+      table.print-table th, table.print-table td {
+        border: 1px solid #bbb; padding: 4px 6px; font-size: 10.5px; text-align: left;
+        overflow-wrap: break-word; word-break: break-word; vertical-align: top;
+      }
       table.print-table th { background: #f2f2f2; }
       table.print-table td.num, table.print-table th.num { text-align: right; white-space: nowrap; }
+      /* Largeurs de colonnes stables (date / libellé / entrée / sortie) pour
+         éviter qu'un libellé long ne déséquilibre tout le tableau. */
+      table.print-table th:nth-child(1), table.print-table td:nth-child(1) { width: 15%; }
+      table.print-table th:nth-child(2), table.print-table td:nth-child(2) { width: 45%; }
+      table.print-table th:nth-child(3), table.print-table td:nth-child(3),
+      table.print-table th:nth-child(4), table.print-table td:nth-child(4) { width: 20%; }
+
       .print-sortie-row td:first-child { padding-left: 18px; color: #333; }
       .print-cat-total td { font-weight: 700; background: #f7f7f7; }
-      .print-global-totals { margin-top: 16px; border-top: 2px solid #333; padding-top: 8px; }
+      .print-cat-total { break-inside: avoid; page-break-inside: avoid; }
+
+      /* Totaux globaux + signatures regroupés pour ne jamais se retrouver
+         isolés seuls en haut d'une page. */
+      .print-footer-block { break-inside: avoid; page-break-inside: avoid; margin-top: 16px; }
+      .print-global-totals { border-top: 2px solid #333; padding-top: 8px; }
       .print-global-totals table { width: 60%; margin-left: auto; border-collapse: collapse; }
       .print-global-totals td { padding: 3px 8px; font-size: 11.5px; }
       .print-global-totals td.num { text-align: right; font-weight: 700; }
@@ -1203,16 +1255,18 @@
         }
 
         html += `
-          <div class="print-global-totals">
-            <table>
-              <tr><td>Total des entrées</td><td class="num">${formatMontant(totalGlobalEntrees)}</td></tr>
-              <tr><td>Total des sorties</td><td class="num">${formatMontant(totalGlobalSorties)}</td></tr>
-              <tr><td>Solde</td><td class="num">${formatMontant(solde)}</td></tr>
-            </table>
-          </div>
-          <div class="print-signatures">
-            <div>Le Comptable</div>
-            <div>Le Directeur / La Directrice</div>
+          <div class="print-footer-block">
+            <div class="print-global-totals">
+              <table>
+                <tr><td>Total des entrées</td><td class="num">${formatMontant(totalGlobalEntrees)}</td></tr>
+                <tr><td>Total des sorties</td><td class="num">${formatMontant(totalGlobalSorties)}</td></tr>
+                <tr><td>Solde</td><td class="num">${formatMontant(solde)}</td></tr>
+              </table>
+            </div>
+            <div class="print-signatures">
+              <div>Le Comptable</div>
+              <div>Le Directeur / La Directrice</div>
+            </div>
           </div>
         `;
 

@@ -37,7 +37,6 @@ def create_app(config_name=None):
     db.init_app(app)
     Migrate(app, db)
 
-    
     # Enregistrer les blueprints
     app.register_blueprint(structure_bp)
     app.register_blueprint(pedagogie_bp)
@@ -107,7 +106,6 @@ def create_app(config_name=None):
         return render_template('index.html')
 
     return app
-
 
 if __name__ == '__main__':
     app = create_app()
